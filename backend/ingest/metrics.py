@@ -63,7 +63,7 @@ noaa_breaker_tripped_total = Counter(
 freshness_gate_503_total = Counter(
     "freshness_gate_503_total",
     "Count of /conditions responses where the freshness gate returned 503.",
-    labelnames=("station_id",),
+    labelnames=("station_id", "reason"),
 )
 
 
