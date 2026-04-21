@@ -23,11 +23,9 @@ from sqlalchemy import engine_from_config, pool
 from app.config import settings
 from db.base import Base
 
-# Plan 01: db/models.py does not yet exist. Plan 02 adds it and removes this guard.
-try:
-    import db.models  # noqa: F401
-except ImportError:
-    pass
+# Plan 02: db/models.py exists and registers all ORM classes onto Base.metadata.
+# Import for side effects; Alembic autogenerate reads target_metadata below.
+import db.models  # noqa: F401
 
 config = context.config
 
