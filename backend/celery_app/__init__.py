@@ -20,9 +20,19 @@ celery_app = Celery(
     "tide",
     broker=settings.redis_url,
     backend=settings.redis_url,  # results also in Redis
-    # TODO Plan 05: re-add task module includes for
-    # celery_app.tasks.{noaa,meteo,solunar,backup}
-    include=[],
+    # Plan 05 wires the ingest task modules. The backup task is wired by Plan 07.
+    include=[
+        "celery_app.tasks.noaa",
+        "celery_app.tasks.meteo",
+        "celery_app.tasks.solunar",
+        # "celery_app.tasks.backup",  # wired by Plan 07
+    ],
+)
+
+_ingest_task_modules = (
+    "celery_app.tasks.noaa",
+    "celery_app.tasks.meteo",
+    "celery_app.tasks.solunar",
 )
 
 celery_app.conf.update(
@@ -46,7 +56,10 @@ celery_app.conf.update(
             "schedule": crontab(minute="*/30"),
         },
         "compute_solunar": {
-            "task": "celery_app.tasks.solunar.compute_solunar",
+            # Plan 05 disambiguates the task function name from the pure
+            # computation helper (ingest.solunar.compute_solunar) — the Celery
+            # task is named compute_solunar_task to avoid a name collision.
+            "task": "celery_app.tasks.solunar.compute_solunar_task",
             "schedule": crontab(minute=0),  # top of every hour
         },
         "backup_timescaledb": {
@@ -55,3 +68,25 @@ celery_app.conf.update(
         },
     },
 )
+
+
+def _register_ingest_tasks() -> None:
+    """Eagerly import the Plan 05 ingest task modules so their decorators
+    register the tasks on ``celery_app.tasks`` at ``from celery_app import
+    celery_app`` time — not just when the Celery worker bootstraps. This
+    makes ``'celery_app.tasks.noaa.poll_noaa_stations' in celery_app.tasks``
+    true in plain Python shells / unit tests / the orchestrator's verify
+    snippet.
+    """
+    import importlib
+
+    for mod in _ingest_task_modules:
+        try:
+            importlib.import_module(mod)
+        except ImportError:
+            # Task module not yet present (e.g. during Plan 01 bootstrap) —
+            # `include=[]` case already satisfied, skip silently.
+            pass
+
+
+_register_ingest_tasks()
