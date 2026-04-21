@@ -20,12 +20,12 @@ celery_app = Celery(
     "tide",
     broker=settings.redis_url,
     backend=settings.redis_url,  # results also in Redis
-    # Plan 05 wires the ingest task modules. The backup task is wired by Plan 07.
+    # Plan 05 wires the ingest task modules; Plan 07 adds the backup task.
     include=[
         "celery_app.tasks.noaa",
         "celery_app.tasks.meteo",
         "celery_app.tasks.solunar",
-        # "celery_app.tasks.backup",  # wired by Plan 07
+        "celery_app.tasks.backup",
     ],
 )
 
@@ -33,6 +33,7 @@ _ingest_task_modules = (
     "celery_app.tasks.noaa",
     "celery_app.tasks.meteo",
     "celery_app.tasks.solunar",
+    "celery_app.tasks.backup",
 )
 
 celery_app.conf.update(
