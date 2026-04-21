@@ -1,0 +1,114 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg17
+    container_name: tide-db
+    environment:
+      POSTGRES_USER: tide
+      POSTGRES_PASSWORD: tide
+      POSTGRES_DB: tide
+    ports: ["5432:5432"]
+    volumes:
+      - tide_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tide -d tide"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: tide-redis
+    ports: ["6379:6379"]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - tide_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  qdrant:
+    # Scaffolded for Phase 2; not used by Phase 1 but part of the topology
+    image: qdrant/qdrant:latest
+    container_name: tide-qdrant
+    ports: ["6333:6333", "6334:6334"]
+    volumes:
+      - tide_qdrant:/qdrant/storage
+
+  migrator:
+    # One-shot container: applies Alembic migrations then exits.
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    command: ["uv", "run", "alembic", "upgrade", "head"]
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tide:tide@db:5432/tide
+      DATABASE_SYNC_URL: postgresql+psycopg2://tide:tide@db:5432/tide
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./seeds:/app/seeds:ro
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    container_name: tide-api
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["8000:8000"]
+    depends_on:
+      migrator: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tide:tide@db:5432/tide
+      DATABASE_SYNC_URL: postgresql+psycopg2://tide:tide@db:5432/tide
+      REDIS_URL: redis://redis:6379/0
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prom_multiproc
+    volumes:
+      - ./seeds:/app/seeds:ro
+      - tide_prom:/tmp/prom_multiproc
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: tide-worker
+    command: ["uv", "run", "celery", "-A", "celery_app", "worker", "--loglevel=info",
+              "--concurrency=2", "--queues=tide"]
+    depends_on:
+      migrator: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tide:tide@db:5432/tide
+      DATABASE_SYNC_URL: postgresql+psycopg2://tide:tide@db:5432/tide
+      REDIS_URL: redis://redis:6379/0
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prom_multiproc
+    volumes:
+      - tide_prom:/tmp/prom_multiproc
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: tide-beat
+    # CRITICAL: exactly ONE beat process — do not scale this service.
+    command: ["uv", "run", "celery", "-A", "celery_app", "beat", "--loglevel=info",
+              "--schedule=/celerybeat/celerybeat-schedule"]
+    depends_on:
+      migrator: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tide:tide@db:5432/tide
+      DATABASE_SYNC_URL: postgresql+psycopg2://tide:tide@db:5432/tide
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - tide_beat:/celerybeat
+
+volumes:
+  tide_pgdata:
+  tide_redis:
+  tide_qdrant:
+  tide_prom:
+  tide_beat:
