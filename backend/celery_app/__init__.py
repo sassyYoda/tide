@@ -1,0 +1,57 @@
+"""Celery app factory with stable beat schedule.
+
+Task names are import-path based and STABLE — Plans 02–05 reference these exact
+strings directly. Changing a task name is a schema break for operators.
+
+Plan 01 ships with `include=[]` because the task modules don't exist yet.
+Plan 05 re-adds the `include` list once `celery_app.tasks.{noaa,meteo,solunar,backup}`
+exist.
+"""
+
+from __future__ import annotations
+
+from celery import Celery
+from celery.schedules import crontab
+
+from app.config import settings
+
+
+celery_app = Celery(
+    "tide",
+    broker=settings.redis_url,
+    backend=settings.redis_url,  # results also in Redis
+    # TODO Plan 05: re-add task module includes for
+    # celery_app.tasks.{noaa,meteo,solunar,backup}
+    include=[],
+)
+
+celery_app.conf.update(
+    timezone="UTC",
+    enable_utc=True,
+    task_acks_late=True,  # requeue if worker dies mid-task
+    task_reject_on_worker_lost=True,
+    worker_prefetch_multiplier=1,  # fair dispatch for slow I/O tasks
+    broker_connection_retry_on_startup=True,
+    task_default_queue="tide",
+    # STABLE TASK NAMES — Phase 2 imports these directly.
+    # Tasks themselves are added in Plan 05; the schedule is scaffolded here so
+    # the infra shape is locked at Wave 0.
+    beat_schedule={
+        "poll_noaa_stations": {
+            "task": "celery_app.tasks.noaa.poll_noaa_stations",
+            "schedule": crontab(minute="*/15"),  # every 15 min on the dot
+        },
+        "poll_open_meteo": {
+            "task": "celery_app.tasks.meteo.poll_open_meteo",
+            "schedule": crontab(minute="*/30"),
+        },
+        "compute_solunar": {
+            "task": "celery_app.tasks.solunar.compute_solunar",
+            "schedule": crontab(minute=0),  # top of every hour
+        },
+        "backup_timescaledb": {
+            "task": "celery_app.tasks.backup.backup_timescaledb_to_gcs",
+            "schedule": crontab(hour=4, minute=15),  # 04:15 UTC daily
+        },
+    },
+)
