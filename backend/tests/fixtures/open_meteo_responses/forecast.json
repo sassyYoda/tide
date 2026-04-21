@@ -1,0 +1,50 @@
+{
+  "latitude": 39.3567,
+  "longitude": -74.418,
+  "generationtime_ms": 0.421,
+  "utc_offset_seconds": 0,
+  "timezone": "UTC",
+  "elevation": 3.0,
+  "current_units": {
+    "time": "iso8601",
+    "interval": "seconds",
+    "wind_speed_10m": "m/s",
+    "wind_direction_10m": "°",
+    "surface_pressure": "hPa",
+    "temperature_2m": "°C",
+    "precipitation": "mm",
+    "cloud_cover": "%"
+  },
+  "current": {
+    "time": "2026-04-20T15:00",
+    "interval": 900,
+    "wind_speed_10m": 4.1,
+    "wind_direction_10m": 218.0,
+    "surface_pressure": 1014.6,
+    "temperature_2m": 14.2,
+    "precipitation": 0.0,
+    "cloud_cover": 42
+  },
+  "hourly_units": {
+    "time": "iso8601",
+    "wind_speed_10m": "m/s",
+    "wind_direction_10m": "°",
+    "surface_pressure": "hPa",
+    "temperature_2m": "°C",
+    "precipitation_probability": "%",
+    "cloud_cover": "%"
+  },
+  "hourly": {
+    "time": [
+      "2026-04-20T15:00",
+      "2026-04-20T16:00",
+      "2026-04-20T17:00"
+    ],
+    "wind_speed_10m": [4.1, 4.4, 4.9],
+    "wind_direction_10m": [218.0, 224.0, 229.0],
+    "surface_pressure": [1014.6, 1014.2, 1013.8],
+    "temperature_2m": [14.2, 14.6, 14.9],
+    "precipitation_probability": [5, 8, 10],
+    "cloud_cover": [42, 48, 55]
+  }
+}
