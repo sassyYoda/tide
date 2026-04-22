@@ -84,7 +84,20 @@ def backup_timescaledb_to_gcs(self) -> str:
             "backup_timescaledb_to_gcs: running pg_dump to %s", dump_path
         )
         # subprocess.run with a fixed list — no shell, no interpolation.
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as exc:
+            # WR-03: Celery's default exception stringifier drops captured
+            # stdout/stderr. Surface them before re-raising so the on-call
+            # has pg_dump's actual error (e.g. FATAL: role does not exist)
+            # in the task log, not just the generic exit-status line.
+            logger.error(
+                "pg_dump failed rc=%d stdout=%r stderr=%r",
+                exc.returncode,
+                exc.stdout,
+                exc.stderr,
+            )
+            raise
 
         client = storage.Client()
         bucket = client.bucket(settings.gcs_backup_bucket)
