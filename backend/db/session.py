@@ -17,6 +17,14 @@ async_engine = create_async_engine(
     settings.database_url,
     pool_pre_ping=True,
     pool_size=10,
+    # WR-07: bound worst-case connection staleness so long-lived Celery
+    # workers survive NAT/Timescale restart cycles that pool_pre_ping can
+    # miss. 30 minutes is a conservative middle-ground between churn and
+    # safety.
+    pool_recycle=1800,
+    # Fail fast on checkout starvation rather than silently blocking a
+    # request indefinitely.
+    pool_timeout=10,
 )
 
 async_session_factory = async_sessionmaker(
