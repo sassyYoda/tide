@@ -66,10 +66,12 @@ _CONDITIONS_QUERY = text(
             c.water_level_m,
             c.water_temp_c,
             c.wind_speed_ms,
-            c.wind_direction_deg,
+            -- CAGG column is wind_dir_deg; alias to the API-contract name.
+            c.wind_dir_deg              AS wind_direction_deg,
             c.surface_pressure_hpa,
             c.air_temperature_c,
-            c.precipitation_mm,
+            -- CAGG does NOT expose precipitation_mm — only precipitation_prob_pct.
+            c.precipitation_prob_pct,
             c.cloud_cover_pct
         FROM conditions_15min c
         WHERE c.station_id = :station_id
@@ -120,7 +122,7 @@ _CONDITIONS_QUERY = text(
         l.wind_direction_deg,
         l.surface_pressure_hpa,
         l.air_temperature_c,
-        l.precipitation_mm,
+        l.precipitation_prob_pct,
         l.cloud_cover_pct,
         t.pressure_delta_1h,
         t.pressure_delta_3h,
@@ -204,10 +206,10 @@ async def get_conditions(
             pressure_delta_6h=row.get("pressure_delta_6h"),
             pressure_trend_label=row.get("pressure_trend_label"),
             air_temperature_c=row.get("air_temperature_c"),
-            # hourly forecast precipitation_prob_pct is a forecast-block
-            # field (Open-Meteo hourly array) not captured at MVP;
-            # Phase 2 surfaces it.
-            precipitation_prob_pct=None,
+            # precipitation_prob_pct is now sourced from the CAGG, which
+            # propagates it from weather_observations (Plan 05 ingest now
+            # populates the column from Open-Meteo's hourly forecast).
+            precipitation_prob_pct=row.get("precipitation_prob_pct"),
             cloud_cover_pct=row.get("cloud_cover_pct"),
         ),
         solunar=SolunarBlock(
