@@ -1,9 +1,23 @@
+# WR-06: Non-root user hardening applied below. Digest pinning
+# (`python:3.12-slim@sha256:<digest>`) is intentionally DEFERRED to the
+# first Renovate/Dependabot-tracked update so the pin is maintained; a
+# hand-picked digest here would silently go stale. Track the follow-up
+# when configuring Renovate.
 FROM python:3.12-slim
+
+# Create an unprivileged user and own /app.
+RUN groupadd --system app \
+ && useradd --system --gid app --no-create-home app \
+ && mkdir -p /app \
+ && chown app:app /app
+
 WORKDIR /app
 RUN pip install --no-cache-dir uv
-COPY pyproject.toml uv.lock ./
+COPY --chown=app:app pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
-COPY . .
+COPY --chown=app:app . .
+
+USER app
 ENV PYTHONPATH=/app
 EXPOSE 8000
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
