@@ -97,6 +97,34 @@ def _coerce_float(v: Any) -> float | None:
         return None
 
 
+def _hourly_precip_prob_for(
+    raw: dict[str, Any], obs_time: datetime
+) -> float | None:
+    """Look up ``precipitation_probability`` from the hourly forecast block.
+
+    Open-Meteo's ``current`` block does NOT expose ``precipitation_probability``
+    (that field is ``hourly``-only); ``current.precipitation`` is millimetres
+    of precipitation, a different physical quantity. To populate
+    ``precipitation_prob_pct`` correctly we have to index into the hourly
+    arrays at the hour matching ``obs_time``. Returns ``None`` if the lookup
+    fails for any reason (missing block, missing hour, non-numeric value).
+    """
+    hourly = raw.get("hourly") or {}
+    hourly_times = hourly.get("time") or []
+    probs = hourly.get("precipitation_probability") or []
+    if not hourly_times or not probs:
+        return None
+    # Open-Meteo hourly keys are like "2026-04-20T15:00" — strip minutes/secs.
+    key = obs_time.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:00")
+    try:
+        idx = hourly_times.index(key)
+    except ValueError:
+        return None
+    if idx >= len(probs):
+        return None
+    return _coerce_float(probs[idx])
+
+
 def shape_meteo_row(
     station_id: str,
     raw: dict[str, Any],
@@ -113,6 +141,11 @@ def shape_meteo_row(
     else:
         obs_time = datetime.now(timezone.utc)
 
+    # precipitation_prob_pct MUST be sourced from hourly.precipitation_probability
+    # (percent), not current.precipitation (millimetres) — different quantities
+    # with different units. See CR-02.
+    precipitation_prob_pct = _hourly_precip_prob_for(raw, obs_time)
+
     return {
         "station_id": station_id,
         "time": obs_time,
@@ -120,7 +153,7 @@ def shape_meteo_row(
         "wind_dir_deg": _coerce_float(current.get("wind_direction_10m")),
         "surface_pressure_hpa": _coerce_float(current.get("surface_pressure")),
         "temperature_2m_c": _coerce_float(current.get("temperature_2m")),
-        "precipitation_prob_pct": _coerce_float(current.get("precipitation")),
+        "precipitation_prob_pct": precipitation_prob_pct,
         "cloud_cover_pct": _coerce_float(current.get("cloud_cover")),
         "source": "open_meteo",
         "raw_payload": raw,
