@@ -94,4 +94,8 @@ def test_partial_blocks_allowed():
     wb = WeatherBlock()
     assert wb.wind_speed_ms is None
     sb = SolunarBlock()
-    assert sb.moon_phase == 0.0
+    # WR-02: SolunarBlock fields are None by default so a missing solunar
+    # row is distinguishable from a genuine new-moon (0.0) reading.
+    assert sb.moon_phase is None
+    assert sb.illumination is None
+    assert sb.quality_score is None

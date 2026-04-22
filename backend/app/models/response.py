@@ -63,18 +63,23 @@ class WeatherBlock(BaseModel):
 
 
 class SolunarBlock(BaseModel):
-    """Solunar block — computed values, always present."""
+    """Solunar block — computed values. Fields are Optional because the
+    solunar beat task may not have run yet for a given station; see WR-02.
+    Silent ``0.0`` substitution (``None or 0.0``) was removed — a genuine
+    new-moon reading of 0.0 is distinguishable from a missing row at the
+    cost of a nullable contract.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
-    moon_phase: float = 0.0
-    illumination: float = 0.0
-    lunar_day: float = 0.0
+    moon_phase: float | None = None
+    illumination: float | None = None
+    lunar_day: float | None = None
     next_major_start: datetime | None = None
     next_major_end: datetime | None = None
     next_minor_start: datetime | None = None
     next_minor_end: datetime | None = None
-    quality_score: float = 0.0
+    quality_score: float | None = None
 
 
 class ConditionsResponse(BaseModel):

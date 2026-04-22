@@ -213,14 +213,17 @@ async def get_conditions(
             cloud_cover_pct=row.get("cloud_cover_pct"),
         ),
         solunar=SolunarBlock(
-            moon_phase=row.get("moon_phase") or 0.0,
-            illumination=row.get("illumination") or 0.0,
-            lunar_day=row.get("lunar_day") or 0.0,
+            # Do NOT coalesce to 0.0 — that masks a missing solunar row as a
+            # real new-moon reading (WR-02). Propagate None when the CTE
+            # did not find a row for this station.
+            moon_phase=row.get("moon_phase"),
+            illumination=row.get("illumination"),
+            lunar_day=row.get("lunar_day"),
             next_major_start=row.get("next_major_start"),
             next_major_end=row.get("next_major_end"),
             next_minor_start=row.get("next_minor_start"),
             next_minor_end=row.get("next_minor_end"),
-            quality_score=row.get("quality_score") or 0.0,
+            quality_score=row.get("quality_score"),
         ),
         sunrise=row.get("sunrise"),
         sunset=row.get("sunset"),
