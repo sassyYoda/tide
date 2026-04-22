@@ -72,10 +72,23 @@ class HarmonicForecastRow(TypedDict, total=False):
 # ---------------------------------------------------------------------------
 # tenacity wait factory — respects NOAA_TEST_NO_JITTER=1 so unit tests can
 # skip real backoff without monkeypatching tenacity internals.
+#
+# IMPORTANT (WR-08): ``NOAA_TEST_NO_JITTER`` is captured ONCE at module
+# import time via the module-level constant ``_NOAA_TEST_NO_JITTER`` below.
+# The env-var must be set BEFORE ``backend.ingest.noaa_client`` is imported
+# for the no-jitter policy to take effect. Mutating the env-var from a
+# pytest fixture AFTER import has no runtime effect on the retry policy —
+# unit tests that need deterministic sleeps also monkeypatch
+# ``tenacity.nap.time.sleep``. Migrating to a per-call ``Retrying`` object
+# would make the flag dynamic but also changes the decorator contract, so
+# we keep the import-time capture and document it explicitly.
 # ---------------------------------------------------------------------------
+_NOAA_TEST_NO_JITTER = os.environ.get("NOAA_TEST_NO_JITTER") == "1"
+
+
 def _wait_policy():
     base = wait_exponential(multiplier=1, min=1, max=16)
-    if os.environ.get("NOAA_TEST_NO_JITTER") == "1":
+    if _NOAA_TEST_NO_JITTER:
         return base
     return base + wait_random(0, 2)
 
