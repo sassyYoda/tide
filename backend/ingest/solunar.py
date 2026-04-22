@@ -79,15 +79,21 @@ def compute_solunar(lat: float, lon: float, when: datetime) -> dict[str, Any]:
     lunar_day = float(observer.date - prev_new)
 
     # Sun rise/set for the observing day.
+    #
+    # NOTE: ``observer.next_rising(sun)`` mutates ``observer.date`` as a side
+    # effect (advances it to the event time). We therefore call it exactly
+    # once per event and reset ``observer.date`` before each call so the two
+    # lookups are independent. Prior versions of this function evaluated the
+    # call twice inside a ternary expression, which caused the second call to
+    # compute against an already-advanced observer (see WR-01).
     sun = ephem.Sun()
-    sunrise = _to_utc(_safe_next(lambda: observer.next_rising(sun))) if _safe_next(
-        lambda: observer.next_rising(sun)
-    ) is not None else None
-    # next_rising advanced the observer — reset to ``when`` before computing next_setting
     observer.date = ephem.Date(when)
-    sunset = _to_utc(_safe_next(lambda: observer.next_setting(sun))) if _safe_next(
-        lambda: observer.next_setting(sun)
-    ) is not None else None
+    raw_sunrise = _safe_next(lambda: observer.next_rising(sun))
+    sunrise = _to_utc(raw_sunrise) if raw_sunrise is not None else None
+
+    observer.date = ephem.Date(when)
+    raw_sunset = _safe_next(lambda: observer.next_setting(sun))
+    sunset = _to_utc(raw_sunset) if raw_sunset is not None else None
 
     # Major: moon transit ± 1 hour.
     observer.date = ephem.Date(when)
