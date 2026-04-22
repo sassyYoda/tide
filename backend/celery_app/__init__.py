@@ -3,9 +3,13 @@
 Task names are import-path based and STABLE — Plans 02–05 reference these exact
 strings directly. Changing a task name is a schema break for operators.
 
-Plan 01 ships with `include=[]` because the task modules don't exist yet.
-Plan 05 re-adds the `include` list once `celery_app.tasks.{noaa,meteo,solunar,backup}`
-exist.
+Plan 05 wires the `include=[...]` list since
+`celery_app.tasks.{noaa,meteo,solunar,backup}` now exist. The
+`_register_ingest_tasks` helper preserves the Plan 01 bootstrap ergonomics
+(being tolerant of a genuinely-missing module file during early plan work)
+but narrows the exception handler to `ModuleNotFoundError` so that a real
+ImportError inside an existing task module (bad transitive import, syntax
+error surfacing as ImportError, etc.) surfaces instead of being swallowed.
 """
 
 from __future__ import annotations
@@ -84,10 +88,13 @@ def _register_ingest_tasks() -> None:
     for mod in _ingest_task_modules:
         try:
             importlib.import_module(mod)
-        except ImportError:
-            # Task module not yet present (e.g. during Plan 01 bootstrap) —
-            # `include=[]` case already satisfied, skip silently.
-            pass
+        except ModuleNotFoundError:
+            # WR-04: only swallow "the module file is genuinely absent"
+            # (Plan 01 bootstrap case). Any other ImportError — e.g. a
+            # misspelled import inside an existing task module or a missing
+            # transitive dependency — MUST propagate so Celery bootstrap
+            # fails loudly rather than silently failing to register the task.
+            continue
 
 
 _register_ingest_tasks()
