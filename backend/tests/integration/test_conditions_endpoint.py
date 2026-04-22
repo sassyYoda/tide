@@ -296,11 +296,11 @@ def test_metrics_scrape(test_client):
     # data_age_seconds and freshness_gate_503_total are declared in
     # ingest.metrics; they may have zero samples in multiproc mode but the
     # metric name registers in the body once the default registry exports.
-    # We tolerate either literal appearance OR the HELP/TYPE descriptor.
-    assert (
-        "data_age_seconds" in body
-        or "freshness_gate_503_total" in body
-        or body  # body at least non-empty — endpoint alive
+    # WR-09: the prior `or body` fallback made this assertion trivially
+    # true; drop it and require at least one of the Tide metric names to
+    # appear in the Prometheus body.
+    assert "data_age_seconds" in body or "freshness_gate_503_total" in body, (
+        f"neither Tide metric appeared in /metrics body: {body[:500]!r}"
     )
 
 
