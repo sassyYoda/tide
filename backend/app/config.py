@@ -25,6 +25,17 @@ class Settings(BaseSettings):
     prometheus_multiproc_dir: str = Field(
         "/tmp/prom_multiproc", alias="PROMETHEUS_MULTIPROC_DIR"
     )
+    # Phase 2 additions — ML + RAG
+    openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
+    qdrant_url: str = Field("http://qdrant:6333", alias="QDRANT_URL")
+    mlflow_tracking_uri: str = Field("./mlruns", alias="MLFLOW_TRACKING_URI")
+    mlflow_artifact_root: str = Field("./mlartifacts", alias="MLFLOW_ARTIFACT_ROOT")
+    reddit_client_id: str = Field("", alias="REDDIT_CLIENT_ID")
+    reddit_client_secret: str = Field("", alias="REDDIT_CLIENT_SECRET")
+    reddit_user_agent: str = Field("Tide/0.1", alias="REDDIT_USER_AGENT")
+    fishbrain_user_agent: str = Field(
+        "Tide/0.1 (+research-mvp)", alias="FISHBRAIN_USER_AGENT"
+    )
 
 
 settings = Settings()  # import-time instantiation; fails fast on missing required env

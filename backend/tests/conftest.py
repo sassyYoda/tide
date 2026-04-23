@@ -29,6 +29,15 @@ os.environ.setdefault(
     "DATABASE_SYNC_URL", "postgresql+psycopg2://tide:tide@localhost:5432/tide"
 )
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+# Phase 2 env defaults — keep app.config.Settings instantiable during collection.
+os.environ.setdefault("OPENAI_API_KEY", "test-key")
+os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
+os.environ.setdefault("MLFLOW_TRACKING_URI", "./mlruns")
+os.environ.setdefault("MLFLOW_ARTIFACT_ROOT", "./mlartifacts")
+os.environ.setdefault("REDDIT_CLIENT_ID", "")
+os.environ.setdefault("REDDIT_CLIENT_SECRET", "")
+os.environ.setdefault("REDDIT_USER_AGENT", "Tide/0.1 (test)")
+os.environ.setdefault("FISHBRAIN_USER_AGENT", "Tide/0.1 (test)")
 
 import pytest
 import pytest_asyncio
