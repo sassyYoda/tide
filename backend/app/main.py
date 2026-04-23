@@ -19,18 +19,33 @@ from __future__ import annotations
 import os
 
 from fastapi import FastAPI
-from prometheus_client import CollectorRegistry, make_asgi_app, multiprocess
+from prometheus_client import REGISTRY, CollectorRegistry, make_asgi_app, multiprocess
 
+# Force-import ingest.metrics so Counter/Gauge/Histogram declarations register
+# with the default REGISTRY before /metrics is first scraped. Without this
+# the single-process registry is empty at scrape time if no ingest task has
+# run yet in the process.
+from app import api  # noqa: F401 — touches deps so app.api is importable
 from app.api.conditions import router as conditions_router
 from app.api.health import router as health_router
+from ingest import metrics as _metrics_module  # noqa: F401 — register metrics
 
 
 def _build_metrics_registry() -> CollectorRegistry:
-    """Return a CollectorRegistry; wire MultiProcessCollector if env is set."""
-    registry = CollectorRegistry()
+    """Return a CollectorRegistry for /metrics.
+
+    - Under ``PROMETHEUS_MULTIPROC_DIR`` (production workers): build a fresh
+      registry and attach ``MultiProcessCollector`` so the scrape reads
+      per-process *.db files instead of the default in-process registry.
+    - Otherwise (single-process tests / local dev): return the default
+      ``REGISTRY`` singleton so Counter/Gauge declarations in ``ingest.metrics``
+      are visible at scrape time even with no samples recorded.
+    """
     if os.environ.get("PROMETHEUS_MULTIPROC_DIR"):
+        registry = CollectorRegistry()
         multiprocess.MultiProcessCollector(registry)
-    return registry
+        return registry
+    return REGISTRY
 
 
 def create_app() -> FastAPI:

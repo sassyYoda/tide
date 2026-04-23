@@ -1,8 +1,12 @@
 """``/conditions/{station_id}`` route — gated on :func:`require_fresh_conditions`.
 
-The route reads from four places and stitches a :class:`ConditionsResponse`:
+The route reads from five places and stitches a :class:`ConditionsResponse`:
 
-- ``conditions_15min`` CAGG (Plan 02) — latest bucket for sensor averages
+- ``conditions_15min`` CAGG (Plan 02) — latest bucket for tide sensor averages
+  (tide-only CAGG; weather is joined at read time because TimescaleDB
+  continuous aggregates must reference exactly one hypertable)
+- ``weather_observations`` (Plan 05) — latest raw row for wind / pressure /
+  temp / precip / cloud cover
 - ``weather_observations`` (Plan 05) — latest row for pressure-trend values
   (stored under ``raw_payload['_pressure_trend']`` because Plan 02's schema
   does not yet have typed columns for those fields; Plan 05 summary Known
@@ -10,8 +14,8 @@ The route reads from four places and stitches a :class:`ConditionsResponse`:
 - ``solunar_values`` (Plan 05) — latest hour's solunar snapshot
 - ``noaa_stations`` (Plan 03 seed) — station master (name lookup)
 
-All four are joined by ``station_id``. The CAGG read is the authoritative
-``observed_at``; the other three are best-effort (None on missing row).
+All are joined by ``station_id``. The CAGG read is the authoritative
+``observed_at``; the other reads are best-effort (None on missing row).
 
 Phase 1 deferral — ``TidalBlock.next_high`` / ``next_low`` fields remain
 ``None`` in this route; Phase 3's LangGraph agent will populate them from
@@ -52,30 +56,38 @@ from app.models.response import (
 router = APIRouter()
 
 
-# Four small CTEs joined onto the stations master (no cross-station work
-# happens inside a single request — all filters bind :station_id). Values
-# for the pressure-trend fields live under raw_payload['_pressure_trend']
-# because Plan 02's weather_observations does not have typed columns for
-# them; Plan 05 summary documents this as an intentional schema deferral.
+# Five small CTEs joined onto the stations master (no cross-station work
+# happens inside a single request — all filters bind :station_id).
+# Tide values come from the tide-only CAGG; weather values come from raw
+# weather_observations (cheap — Open-Meteo is hourly). Pressure-trend fields
+# live under raw_payload['_pressure_trend'] because Plan 02's schema does
+# not yet have typed columns for them; Plan 05 summary documents this as
+# an intentional schema deferral.
 _CONDITIONS_QUERY = text(
     """
-    WITH latest AS (
+    WITH latest_tide AS (
         SELECT
             c.station_id,
             c.bucket,
             c.water_level_m,
-            c.water_temp_c,
-            c.wind_speed_ms,
-            -- CAGG column is wind_dir_deg; alias to the API-contract name.
-            c.wind_dir_deg              AS wind_direction_deg,
-            c.surface_pressure_hpa,
-            c.air_temperature_c,
-            -- CAGG does NOT expose precipitation_mm — only precipitation_prob_pct.
-            c.precipitation_prob_pct,
-            c.cloud_cover_pct
+            c.water_temp_c
         FROM conditions_15min c
         WHERE c.station_id = :station_id
         ORDER BY c.bucket DESC
+        LIMIT 1
+    ),
+    latest_weather AS (
+        SELECT
+            wind_speed_ms,
+            -- table column is wind_dir_deg; alias to the API-contract name.
+            wind_dir_deg              AS wind_direction_deg,
+            surface_pressure_hpa,
+            temperature_2m_c          AS air_temperature_c,
+            precipitation_prob_pct,
+            cloud_cover_pct
+        FROM weather_observations
+        WHERE station_id = :station_id
+        ORDER BY time DESC
         LIMIT 1
     ),
     trend AS (
@@ -116,14 +128,14 @@ _CONDITIONS_QUERY = text(
     SELECT
         st.station_id AS st_station_id,
         st.name       AS station_name,
-        l.water_level_m,
-        l.water_temp_c,
-        l.wind_speed_ms,
-        l.wind_direction_deg,
-        l.surface_pressure_hpa,
-        l.air_temperature_c,
-        l.precipitation_prob_pct,
-        l.cloud_cover_pct,
+        lt.water_level_m,
+        lt.water_temp_c,
+        lw.wind_speed_ms,
+        lw.wind_direction_deg,
+        lw.surface_pressure_hpa,
+        lw.air_temperature_c,
+        lw.precipitation_prob_pct,
+        lw.cloud_cover_pct,
         t.pressure_delta_1h,
         t.pressure_delta_3h,
         t.pressure_delta_6h,
@@ -139,9 +151,10 @@ _CONDITIONS_QUERY = text(
         s.next_minor_end,
         s.quality_score
     FROM st
-    LEFT JOIN latest l ON l.station_id = st.station_id
-    LEFT JOIN trend  t ON TRUE
-    LEFT JOIN sol    s ON TRUE
+    LEFT JOIN latest_tide    lt ON lt.station_id = st.station_id
+    LEFT JOIN latest_weather lw ON TRUE
+    LEFT JOIN trend          t  ON TRUE
+    LEFT JOIN sol            s  ON TRUE
     """
 )
 
@@ -206,9 +219,10 @@ async def get_conditions(
             pressure_delta_6h=row.get("pressure_delta_6h"),
             pressure_trend_label=row.get("pressure_trend_label"),
             air_temperature_c=row.get("air_temperature_c"),
-            # precipitation_prob_pct is now sourced from the CAGG, which
-            # propagates it from weather_observations (Plan 05 ingest now
-            # populates the column from Open-Meteo's hourly forecast).
+            # precipitation_prob_pct comes from raw weather_observations
+            # now that the CAGG is tide-only (one-hypertable constraint).
+            # Plan 05 ingest populates the column from Open-Meteo's hourly
+            # forecast.
             precipitation_prob_pct=row.get("precipitation_prob_pct"),
             cloud_cover_pct=row.get("cloud_cover_pct"),
         ),
