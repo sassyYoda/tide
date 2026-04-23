@@ -9,6 +9,12 @@ trailing window the refresh policy has not yet materialized.
 Refresh policy: every 5 min rematerialize the last hour (start_offset=1h,
 end_offset=5min). The 0–5min gap is served live from raw rows via
 materialized_only=false.
+
+Join choice: `LEFT JOIN weather` on tide — TimescaleDB CAGGs only support
+INNER and LEFT joins, not FULL OUTER. Tide is the primary because NOAA posts
+water_level every 6 min for active stations, so 15-min buckets effectively
+always have a tide row; a weather-only bucket (no tide in that window) would
+be rare and is acceptably dropped at MVP.
 """
 
 from __future__ import annotations
@@ -45,7 +51,7 @@ def upgrade() -> None:
                 count(t.*)                               AS tidal_obs_count,
                 count(w.*)                               AS weather_obs_count
             FROM tidal_observations t
-            FULL OUTER JOIN weather_observations w
+            LEFT JOIN weather_observations w
                 ON w.station_id = t.station_id
                 AND time_bucket('15 minutes', w.time) = time_bucket('15 minutes', t.time)
             GROUP BY bucket, t.station_id
