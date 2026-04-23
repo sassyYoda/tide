@@ -208,3 +208,8 @@ __marimo__/
 
 # Local PRD draft
 tide_prd.docx
+
+# Scraped raw reports — directory tracked via .gitkeep, content excluded
+data/raw_reports/*.jsonl
+data/fb_transcriptions.csv
+data/forum_manifest.json
