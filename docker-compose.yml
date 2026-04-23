@@ -49,7 +49,7 @@ services:
       DATABASE_SYNC_URL: postgresql+psycopg2://tide:tide@db:5432/tide
       REDIS_URL: redis://redis:6379/0
     volumes:
-      - ./seeds:/app/seeds:ro
+      - ./seeds:/seeds:ro
 
   api:
     build:
@@ -67,7 +67,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       PROMETHEUS_MULTIPROC_DIR: /tmp/prom_multiproc
     volumes:
-      - ./seeds:/app/seeds:ro
+      - ./seeds:/seeds:ro
       - tide_prom:/tmp/prom_multiproc
 
   worker:

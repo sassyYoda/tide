@@ -7,18 +7,24 @@
 # privileges inside the container. Dropping privileges is defense-in-depth.
 FROM python:3.12-slim
 
-# Create an unprivileged user and own /app.
+# Create an unprivileged user with a real home dir (uv writes its cache to
+# $HOME/.cache/uv, so the app user needs a writable home at runtime).
+# /celerybeat is pre-created app-owned so the tide_beat named volume
+# inherits writable ownership on first mount.
 RUN groupadd --system app \
- && useradd --system --gid app --no-create-home app \
- && mkdir -p /app \
- && chown app:app /app
+ && useradd --system --gid app --create-home --home-dir /home/app app \
+ && mkdir -p /app /celerybeat /tmp/prom_multiproc \
+ && chown app:app /app /celerybeat /tmp/prom_multiproc
 
 WORKDIR /app
 RUN pip install --no-cache-dir uv
 COPY --chown=app:app pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev \
+ && chown -R app:app /app/.venv
+
 COPY --chown=app:app . .
 
 USER app
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app \
+    UV_CACHE_DIR=/home/app/.cache/uv
 CMD ["uv", "run", "celery", "-A", "celery_app", "worker", "--loglevel=info"]
