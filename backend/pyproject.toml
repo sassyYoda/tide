@@ -22,12 +22,36 @@ dependencies = [
     "structlog>=24,<25",
     "tenacity>=9,<10",
     "uvicorn[standard]>=0.34,<0.35",
+    # Phase 2 — ML track
+    "xgboost==3.2.0",
+    "shap==0.51.0",
+    "scikit-learn>=1.6,<2",
+    "optuna>=4,<5",
+    "mlflow==3.11.1",
+    "lightgbm>=4.5,<5",
+    "pandas>=2.2,<3",
+    "numpy>=1.26,<3",
+    # Phase 2 — RAG track
+    "qdrant-client==1.17.1",
+    "fastembed>=0.8,<0.9",
+    "openai>=1.50,<2",
+    "langchain-text-splitters>=0.3,<0.4",
+    "tiktoken>=0.8,<0.9",
+    # Phase 2 — ingest / scrape / extract
+    "asyncpraw>=7.8,<8",
+    "selectolax>=0.3,<0.4",
+    "instructor>=1,<2",
+    "spacy>=3.8,<4",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "integration: requires Docker testcontainers (Timescale/Redis/Qdrant)",
+    "slow: long-running tests (training, benchmarks) — skipped in quick suite",
+]
 
 [dependency-groups]
 dev = [

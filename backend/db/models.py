@@ -226,6 +226,60 @@ class SolunarValue(Base):
     )
 
 
+class ActivityScore(Base):
+    """Per-spot × per-species XGBoost activity score hypertable.
+
+    Written by the `score_all_spots` Celery beat task every 15 min (Phase 2
+    Plan 07). Read by the Phase 3 LangGraph Data Fetcher node.
+
+    - `shap_values` — JSONB of the top-3 (feature_name, shap_value) pairs
+      per M-10; enables the Phase 3 Synthesizer to cite feature drivers
+      without recomputing SHAP at query time.
+    - `raw_payload` — full feature vector + model_version + Optuna trial
+      params per D-09 replayability convention.
+    - `confidence` — 'high' | 'moderate' | 'low' per M-11, DB-enforced via
+      CHECK constraint.
+    - Composite PK (spot_id, species, time) mirrors the TidalObservation /
+      SolunarValue pattern — append-only hypertable.
+    """
+
+    __tablename__ = "activity_scores"
+    __table_args__ = (
+        CheckConstraint(
+            "confidence IN ('high','moderate','low')",
+            name="activity_scores_confidence_check",
+        ),
+        CheckConstraint(
+            "score >= 0 AND score <= 1",
+            name="activity_scores_score_range_check",
+        ),
+    )
+
+    spot_id: Mapped[int] = mapped_column(
+        sa.BigInteger,
+        ForeignKey("fishing_spots.spot_id"),
+        primary_key=True,
+        nullable=False,
+    )
+    species: Mapped[str] = mapped_column(sa.Text, primary_key=True, nullable=False)
+    time: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), primary_key=True, nullable=False
+    )
+    score: Mapped[float] = mapped_column(sa.Double(), nullable=False)
+    shap_values: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    model_version: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    confidence: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    is_forecast: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("FALSE")
+    )
+    raw_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    inserted_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    )
+
+
 __all__ = [
     "NoaaStation",
     "FishingSpot",
@@ -233,4 +287,5 @@ __all__ = [
     "WeatherObservation",
     "NoaaHarmonicForecast",
     "SolunarValue",
+    "ActivityScore",
 ]
