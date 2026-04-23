@@ -11,7 +11,7 @@ SPOTS_PATH = SEEDS_DIR / "fishing_spots.json"
 
 VALID_TYPES = {"jetty", "inlet", "flat", "surf", "channel", "pier"}
 VALID_ACCESS = {"shore", "boat", "kayak"}
-VALID_SPECIES = {"striper", "fluke", "bluefish", "weakfish"}
+VALID_SPECIES = {"striper", "fluke", "bluefish", "weakfish", "tautog"}
 REQUIRED_FIELDS = {
     "name", "lat", "lon", "water_body", "spot_type",
     "species", "nearest_station", "access_type", "source_url",

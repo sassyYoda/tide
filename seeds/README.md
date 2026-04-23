@@ -59,6 +59,8 @@ All IDs in RESEARCH.md §NOAA Stations Draft were re-verified against the live C
 **Multi-orientation handling:** dual-jetty inlets are modeled as separate rows per CONTEXT.md D-07.
 **FK integrity:** every `nearest_station` value references a station in `noaa_stations.json`. Verified programmatically by `backend/tests/unit/test_seed_spots_validator.py::test_fk_integrity_vs_stations`.
 
+**Species allowlist (MVP):** `striper`, `fluke`, `bluefish`, `weakfish`, `tautog`. Tautog was added to the MVP on 2026-04-23 because it's a structure-oriented bottom fish (jetty bases, rock piles, bridge shoulders) with cleanly different feature importances from the pelagic cluster — all 9 jetty/inlet spots are tagged with tautog. Validator enforces ≥8 spots per species.
+
 **Nearest-station assignment strategy:** because the only NJ Atlantic-coast stations with live water-level + water-temperature sensors are Sandy Hook (northern), Atlantic City (mid), and Cape May (southern), most Barnegat Bay interior spots map to `8534720` (Atlantic City — closest great-circle distance) with northern Barnegat Bay spots mapping to `8531680` (Sandy Hook). This is a known MVP simplification.
 
 **Satellite verification:** Claude's first pass uses public satellite imagery via NOAA station pages + general map knowledge. The user spot-check in Task 3 is the authoritative gate — in this run the checkpoint was auto-approved by the orchestrator because `workflow.auto_advance=true`. The first real run of the Plan 04 data migration against live UI is the effective manual verification step.
