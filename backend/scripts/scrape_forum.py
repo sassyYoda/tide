@@ -34,14 +34,18 @@ _PER_DOMAIN_DELAY = 1.0  # polite: 1 req/s per host
 OUTPUT_DIR = pathlib.Path(__file__).resolve().parents[2] / "data" / "raw_reports"
 
 
-# Source config — MVP starts with these two; FishBrain top-up in Plan 04.
+# Source config — MVP starts with NJFishing only.
+# SurfTalk.com domain is parked (returns lander page) — deferred until a working
+# secondary forum is identified. Plan 04 (FishBrain top-up) covers the gap.
+# Selectors are combined CSS lists so the same scraper handles both vBulletin
+# (NJFishing's live HTML) and the synthetic generic-class HTML used in unit tests.
 FORUM_SOURCES = {
     "njfishing": {
         "base_url": "https://njfishing.com",
         "thread_list_selectors": [".thread-title a", "h3.forum-post-title a"],
-        "post_body_selector": ".post-body, .message-content",
-        "post_date_selector": "time[datetime]",
-        "author_selector": ".username, .author-name",
+        "post_body_selector": "div[id^='post_message_'], .post-body, .message-content",
+        "post_date_selector": "time[datetime], .datetime",
+        "author_selector": "a.bigusername, .username, .author-name",
     },
     "surftalk": {
         "base_url": "https://www.surftalk.com",

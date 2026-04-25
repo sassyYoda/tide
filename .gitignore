@@ -213,3 +213,7 @@ tide_prd.docx
 data/raw_reports/*.jsonl
 data/fb_transcriptions.csv
 data/forum_manifest.json
+data/forum_manifest_titles.txt
+
+# Claude Code worktree state (per-session, not version-controlled)
+.claude/

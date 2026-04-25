@@ -54,13 +54,36 @@ def _sanitize(body: str) -> tuple[str, list[str]]:
     return clean, flags
 
 
+def _load_openai_key() -> str | None:
+    """Read OPENAI_API_KEY from os.environ, falling back to backend/.env.
+
+    Avoids importing app.config (which requires DATABASE_URL etc.) so this
+    script can run from any CWD without a fully-populated .env.
+    """
+    key = os.environ.get("OPENAI_API_KEY")
+    if key:
+        return key
+    env_path = pathlib.Path(__file__).resolve().parents[1] / ".env"
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("OPENAI_API_KEY="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return None
+
+
 def _get_client():
     """Lazily construct the Instructor-wrapped OpenAI client.
 
     Deferring construction avoids requiring OPENAI_API_KEY at import time
     (keeps unit tests importable without real creds).
     """
-    return instructor.from_openai(OpenAI())
+    api_key = _load_openai_key()
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY not found in environment or backend/.env"
+        )
+    return instructor.from_openai(OpenAI(api_key=api_key))
 
 
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(min=1, max=8), reraise=True)
