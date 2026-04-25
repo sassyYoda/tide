@@ -85,14 +85,21 @@ def extract_labels_from_subset(
             if rec.fields.catch_quality == "unclear":
                 dropped["unclear_outcome"] += 1
                 continue
-            if rec.fields.date is None:
+            # Date resolution: prefer LLM-extracted fields.date (anchors a date
+            # mentioned in body text), then forum post timestamp from raw.post_date
+            # (the actual post-creation timestamp — usually within a day of the
+            # fishing event for forum reports). Final fallback to raw.scrape_date
+            # is intentionally NOT used: scrape time is unrelated to the fishing
+            # event and would corrupt temporal joins.
+            resolved_date = rec.fields.date or rec.raw.post_date
+            if resolved_date is None:
                 dropped["no_date"] += 1
                 continue
             spot_id = _resolve_spot(rec.fields.location_region, region_to_spot)
             if spot_id is None:
                 dropped["unresolved_region"] += 1
                 continue
-            label_time = _label_time_from_report(rec.fields.date)
+            label_time = _label_time_from_report(resolved_date)
             # Outcome encoding: good_catch → 1, slow → 0, no_fish → 0
             y = 1 if rec.fields.catch_quality == "good_catch" else 0
             species_in_scope = [s for s in rec.fields.species_mentioned if s in SPECIES_LIST]

@@ -11,8 +11,16 @@ import json
 import logging
 import os
 import pathlib
+import re
 from datetime import date, datetime, timezone
 from urllib import robotparser
+
+# vBulletin renders post timestamps as "#1 04-18-2026, 05:18 PM" inside td.thead
+# elements. The leading "#N" anchor distinguishes per-post date cells from
+# breadcrumb td.thead cells at the top of the page.
+_VBULLETIN_DATE_RE = re.compile(
+    r"#\d+\s*(?P<date>\d{2}-\d{2}-\d{4}),?\s*\d{1,2}:\d{2}\s*[AaPp][Mm]"
+)
 
 import httpx
 from selectolax.parser import HTMLParser
@@ -122,6 +130,19 @@ async def scrape_source(
                     post_date = datetime.fromisoformat(dstr.split("T")[0]).date()
                 except Exception:
                     post_date = None
+            # vBulletin fallback: if no datetime attr matched, scan all td.thead
+            # elements on the page for the per-post date pattern "#N MM-DD-YYYY".
+            if post_date is None and source_key == "njfishing":
+                for thead in tree.css("td.thead"):
+                    m = _VBULLETIN_DATE_RE.search(thead.text(strip=True))
+                    if m:
+                        try:
+                            post_date = datetime.strptime(
+                                m.group("date"), "%m-%d-%Y"
+                            ).date()
+                            break
+                        except ValueError:
+                            continue
             author_node = tree.css_first(cfg["author_selector"])
             author = author_node.text(strip=True) if author_node else None
             reports.append(
