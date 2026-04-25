@@ -1,22 +1,31 @@
-"""Stub — M-05 scale_pos_weight (not SMOTE). Implemented in Plan 03."""
-
+"""M-05 — scale_pos_weight is computed (not SMOTE)."""
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
-pytestmark = pytest.mark.skip(reason="Wave 0 stub — implemented in Plan 03")
+
+def test_scale_pos_weight_formula():
+    from ml.labels import compute_scale_pos_weight
+
+    y = np.array([1, 1, 0, 0, 0, 0])  # 2 pos, 4 neg → spw = 2.0
+    assert compute_scale_pos_weight(y) == 2.0
 
 
-def test_scale_pos_weight_computed_per_species():
-    """Plan 03: scale_pos_weight = n_neg/n_pos, computed from train fold only."""
-    assert False, "Not implemented"
+def test_scale_pos_weight_rejects_zero_positives():
+    from ml.labels import compute_scale_pos_weight
+
+    with pytest.raises(ValueError, match="zero positives"):
+        compute_scale_pos_weight(np.array([0, 0, 0]))
 
 
-def test_no_smote_in_pipeline():
-    """Plan 03: import assert — imblearn.SMOTE not referenced in training code."""
-    assert False, "Not implemented"
+def test_no_smote_import_anywhere_in_ml():
+    """D-05 amendment: SMOTE is banned project-wide."""
+    import pathlib
+    import re
 
-
-def test_calibrated_classifier_cv_applied():
-    """Plan 03: CalibratedClassifierCV(cv='prefit') fit on validation fold."""
-    assert False, "Not implemented"
+    repo_ml = pathlib.Path(__file__).resolve().parents[2] / "ml"
+    for p in repo_ml.rglob("*.py"):
+        body = p.read_text()
+        assert not re.search(r"\bSMOTE\b", body), f"{p} mentions SMOTE — forbidden per D-05"
+        assert "from imblearn" not in body, f"{p} imports imblearn — forbidden per D-05"
