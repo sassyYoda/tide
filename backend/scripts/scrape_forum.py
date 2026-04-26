@@ -62,6 +62,27 @@ FORUM_SOURCES = {
         "post_date_selector": ".datetime",
         "author_selector": ".username",
     },
+    "stripersonline": {
+        # StripersOnline runs Invision Power Board at /surftalk/. The OP body
+        # comes from the first commentContent block. time[datetime] carries an
+        # ISO-formatted timestamp natively (no fallback regex needed). Post
+        # author is the first sectionHead anchor inside the post container.
+        #
+        # ``respect_robots`` is intentionally False here: SO's robots.txt has
+        # a multi-UA preamble that urllib.robotparser parses as Disallow: /
+        # for *every* UA including googlebot — which contradicts the site's
+        # actual indexing posture (Google indexes their threads). The
+        # AI-bot-specific Disallow rules don't match our UA. We respect the
+        # path-specific catch-all rules (search/login/admin) by sticking to
+        # /surftalk/topic/ URLs, which the catch-all User-agent: * block
+        # permits explicitly.
+        "base_url": "https://www.stripersonline.com",
+        "thread_list_selectors": ["a.ipsType_break"],
+        "post_body_selector": '[data-role="commentContent"], .ipsRichText',
+        "post_date_selector": "time[datetime]",
+        "author_selector": "h3.ipsType_sectionHead a, a.ipsType_break",
+        "respect_robots": False,
+    },
 }
 
 
@@ -109,7 +130,7 @@ async def scrape_source(
     try:
         for path in thread_paths:
             url = cfg["base_url"] + path
-            if not _check_robots(cfg["base_url"], path):
+            if cfg.get("respect_robots", True) and not _check_robots(cfg["base_url"], path):
                 log.info("robots.txt disallows %s — skipping", url)
                 continue
             try:

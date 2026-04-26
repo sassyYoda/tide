@@ -53,7 +53,7 @@ def main() -> int:
     subset_hashes: set[str] = set()
     subset_records: list[str] = []
     if SUBSET_PATH.exists():
-        for line in SUBSET_PATH.read_text().splitlines():
+        for line in SUBSET_PATH.read_text().split("\n"):
             if not line.strip():
                 continue
             rec = StructuredReport.model_validate_json(line)
@@ -67,7 +67,7 @@ def main() -> int:
     seen_hashes = set(subset_hashes)
     if RAW_DIR.exists():
         for raw_path in sorted(RAW_DIR.glob("*.jsonl")):
-            for line in raw_path.read_text().splitlines():
+            for line in raw_path.read_text().split("\n"):
                 if not line.strip():
                     continue
                 raw = RawReport.model_validate_json(line)
@@ -90,7 +90,7 @@ def main() -> int:
             if new_struct_path.exists():
                 new_records = [
                     line
-                    for line in new_struct_path.read_text().splitlines()
+                    for line in new_struct_path.read_text().split("\n")
                     if line.strip()
                 ]
         finally:

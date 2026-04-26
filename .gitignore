@@ -223,3 +223,4 @@ backend/mlruns/
 backend/mlartifacts/
 mlruns/
 mlartifacts/
+data/stripersonline_titles.txt
