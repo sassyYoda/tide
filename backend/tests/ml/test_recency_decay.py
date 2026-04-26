@@ -1,17 +1,34 @@
-"""Stub — R-08 recency-decay multiplier on fused retrieval scores. Implemented in Plan 06."""
-
+"""R-08 — recency multiplier bands."""
 from __future__ import annotations
 
-import pytest
+from datetime import datetime, timedelta, timezone
 
-pytestmark = pytest.mark.skip(reason="Wave 0 stub — implemented in Plan 06")
-
-
-def test_recency_multipliers_match_spec():
-    """Plan 06: 1.0 ≤24h, 0.80 24-72h, 0.60 ≤1wk, 0.40 ≤1mo, 0.20 older (R-08)."""
-    assert False, "Not implemented"
+from qdrant.retriever import DEFAULT_FALLBACK, recency_multiplier
 
 
-def test_recency_decay_applied_after_rrf():
-    """Plan 06: recency multiplies the fused RRF score, not the raw dense/sparse."""
-    assert False, "Not implemented"
+BASE = datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc)
+
+
+def test_within_24h_full():
+    assert recency_multiplier(BASE - timedelta(hours=12), BASE) == 1.00
+
+
+def test_at_24h_still_full():
+    assert recency_multiplier(BASE - timedelta(hours=24), BASE) == 1.00
+
+
+def test_within_72h():
+    assert recency_multiplier(BASE - timedelta(hours=48), BASE) == 0.80
+
+
+def test_within_1wk():
+    assert recency_multiplier(BASE - timedelta(days=5), BASE) == 0.60
+
+
+def test_within_30d():
+    assert recency_multiplier(BASE - timedelta(days=20), BASE) == 0.40
+
+
+def test_beyond_30d_fallback():
+    assert recency_multiplier(BASE - timedelta(days=60), BASE) == DEFAULT_FALLBACK
+    assert DEFAULT_FALLBACK == 0.20

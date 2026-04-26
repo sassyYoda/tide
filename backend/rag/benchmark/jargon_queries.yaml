@@ -1,0 +1,120 @@
+# NJ saltwater jargon-heavy retrieval benchmark.
+#
+# STATUS: DRAFT AT CHECKPOINT. Queries are LLM-drafted shape-correct skeletons
+# tagged for human curation. The expected_report_ids must be filled in by the
+# user re-reading data/structured_reports/corpus.jsonl (the report's line index
+# in the JSONL file is the report_id used at seed time).
+#
+# How to fill expected_report_ids at the checkpoint:
+#   1. Open the corpus: ``jq -r '.raw.body' data/structured_reports/corpus.jsonl
+#      | head -n 20`` (or use a JSONL viewer)
+#   2. For each query, identify ≥1 corpus line index whose body matches the
+#      query's intent (the right species + location + jargon). Multiple is
+#      fine — recall@5 is "any expected id appears in top 5".
+#   3. Replace the placeholder ``[]`` with the chosen ids.
+#   4. Run ``cd backend && uv run python -m scripts.retrieval_benchmark`` to
+#      measure recall. Adjust queries (not ids) if the gate fails.
+#
+# Each case must end with a non-empty expected_report_ids list before
+# retrieval_benchmark can score it. The benchmark schema test in
+# tests/rag/test_retrieval_benchmark.py asserts this once the file is committed.
+
+version: 1
+status: draft-pending-curation
+notes: |
+  20 cases. Mix of jargon-heavy (BM25 should win) and semantic
+  (dense should win) so RRF fusion is exercised across both ends.
+
+cases:
+
+  # --- Striper, jargon-heavy (BM25-leaning) -------------------------------
+  - query: "where can I find bass chunking bunker at the inlet outgoing tide"
+    species: striper
+    location_region: barnegat_bay
+    expected_report_ids: []   # TODO: user picks (look for body mentioning bunker chunks + inlet + outgoing)
+
+  - query: "linesider on bunker spoon trolling"
+    species: striper
+    expected_report_ids: []   # TODO: user picks
+
+  - query: "schoolie stripers in the back bay sand eel pattern"
+    species: striper
+    location_region: barnegat_bay
+    expected_report_ids: []   # TODO
+
+  - query: "SP minnow striper night surf jetty"
+    species: striper
+    expected_report_ids: []   # TODO
+
+  - query: "dead low tide striper bite Manasquan"
+    species: striper
+    location_region: manasquan
+    expected_report_ids: []   # TODO
+
+  # --- Fluke / doormat (dense + jargon mix) -------------------------------
+  - query: "doormat fluke gulp bucktail on the drift"
+    species: fluke
+    expected_report_ids: []   # TODO
+
+  - query: "fluke pink Spro bucktail teaser"
+    species: fluke
+    expected_report_ids: []   # TODO
+
+  - query: "summer flounder back bay Barnegat"
+    species: fluke
+    location_region: barnegat_bay
+    expected_report_ids: []   # TODO
+
+  - query: "open boat fluke charter NJ"
+    species: fluke
+    expected_report_ids: []   # TODO
+
+  # --- Tautog / blackfish / tog ------------------------------------------
+  - query: "tog green crab jetty dropping pressure"
+    species: tautog
+    expected_report_ids: []   # TODO
+
+  - query: "blackfish whitelegger crab limit"
+    species: tautog
+    expected_report_ids: []   # TODO
+
+  - query: "blackfish bite slow cold water Gambler"
+    species: tautog
+    expected_report_ids: []   # TODO
+
+  - query: "tog regulations season change"
+    species: tautog
+    expected_report_ids: []   # TODO
+
+  # --- Bluefish / chopper / cocktail -------------------------------------
+  - query: "chopper bluefish blitz topwater popper"
+    species: bluefish
+    expected_report_ids: []   # TODO
+
+  - query: "cocktail blues on Ava 17 mackerel"
+    species: bluefish
+    expected_report_ids: []   # TODO
+
+  - query: "bluefish trolling spoons inshore"
+    species: bluefish
+    expected_report_ids: []   # TODO
+
+  # --- Weakfish / hardhead / weakie -------------------------------------
+  - query: "weakie on bloodworms back bay"
+    species: weakfish
+    expected_report_ids: []   # TODO
+
+  - query: "weakfish slow night bite plugs"
+    species: weakfish
+    expected_report_ids: []   # TODO
+
+  # --- Mixed / location-specific ----------------------------------------
+  - query: "Sandy Hook striper bait pod blitz"
+    species: striper
+    location_region: sandy_hook
+    expected_report_ids: []   # TODO
+
+  - query: "IBSP fall run bunker school"
+    species: striper
+    location_region: ibsp
+    expected_report_ids: []   # TODO
