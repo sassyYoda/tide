@@ -43,6 +43,8 @@ log = logging.getLogger(__name__)
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEEDS_PATH = REPO_ROOT / "seeds" / "fishing_spots.json"
 DEFAULT_SUBSET_PATH = REPO_ROOT / "data" / "structured_reports" / "subset.jsonl"
+# Plan 02-05 — full retrain reads the post-corpus-completion artifact (Plan 02-04).
+CORPUS_PATH = REPO_ROOT / "data" / "structured_reports" / "corpus.jsonl"
 
 
 # Map ReportFields.location_region → spot-name substring(s). First matching
@@ -149,4 +151,4 @@ async def build(
     }
 
 
-__all__ = ["build", "load_spot_maps", "REGION_HINTS"]
+__all__ = ["build", "load_spot_maps", "REGION_HINTS", "DEFAULT_SUBSET_PATH", "CORPUS_PATH"]

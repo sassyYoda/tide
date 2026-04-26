@@ -34,7 +34,7 @@ from db.session import async_session_factory
 from ml.species_config import SPECIES_LIST
 from ml.splits import temporal_split
 from ml.train import EXPERIMENT_NAME, train_lightgbm_baseline, train_species
-from scripts.build_training_set import build
+from scripts.build_training_set import CORPUS_PATH, DEFAULT_SUBSET_PATH, build
 
 log = logging.getLogger(__name__)
 
@@ -56,13 +56,30 @@ async def run(
     run_tag: str = "subset",
     n_trials: int = 60,
     run_lightgbm: bool = True,
+    enforce_gates: bool = False,
 ) -> dict[str, Any]:
-    """Train every species in SPECIES_LIST, returning a per-species results dict."""
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    """Train every species in SPECIES_LIST, returning a per-species results dict.
+
+    Plan 02-05 wiring:
+      - ``run_tag='subset'`` reads ``DEFAULT_SUBSET_PATH`` (Plan 02-01 input — Plan 03 demo).
+      - ``run_tag='full'`` reads ``CORPUS_PATH`` (Plan 02-04 corpus.jsonl — Plan 05 retrain).
+      - ``enforce_gates=True`` asserts M-08 / M-09 gates with D-04/D-16 tautog
+        fallback decision tree (low-label-regime pass-with-note 0.65–0.72;
+        unconditional pass ≥ 0.72; fail < 0.65).
+    """
+    # Honor an explicitly-set MLFLOW_TRACKING_URI (test fixtures use this for
+    # tmp-dir isolation); otherwise fall back to Pydantic settings.
+    uri = os.environ.get("MLFLOW_TRACKING_URI", settings.mlflow_tracking_uri)
+    mlflow.set_tracking_uri(uri)
     mlflow.set_experiment(EXPERIMENT_NAME)
 
+    corpus = CORPUS_PATH if run_tag == "full" else DEFAULT_SUBSET_PATH
+    if not corpus.exists():
+        raise FileNotFoundError(f"Training corpus missing: {corpus}")
+    log.info("training corpus: %s (run_tag=%s)", corpus, run_tag)
+
     async with async_session_factory() as session:
-        bundle = await build(session)
+        bundle = await build(session, subset_path=corpus)
 
     merged = bundle["merged"]
     feature_names = bundle["feature_names"]
@@ -145,7 +162,77 @@ async def run(
 
         results[species] = sp_result
 
+    if enforce_gates:
+        _check_quality_gates(results)
     return results
+
+
+def _check_quality_gates(results: dict[str, Any]) -> None:
+    """M-08 / M-09 gate check with D-04 + D-16 tautog fallback decision tree.
+
+    D-04: AUC ≥ 0.72 hard target unless documented low-label regime.
+    D-16: Tautog labelscarcity is anticipated. Decision tree:
+        - tautog AUC ≥ 0.72  → unconditional pass (with everyone else)
+        - tautog AUC 0.65-0.72 → pass-with-note (logged as warning, not raised)
+        - tautog AUC < 0.65   → fail (raise)
+
+    M-09: Brier ≤ 0.22 AND Precision@Top25% ≥ 0.65 are hard for ALL species.
+
+    A skipped species (insufficient_labels / single_class_fold / empty_fold) is
+    logged as a warning only — the orchestrator already left a synthetic skip
+    run in MLflow with the reason; do not re-fail here.
+
+    Raises ``RuntimeError`` listing every failure if any gate fails.
+    """
+    failures: list[str] = []
+    warnings_: list[str] = []
+    for species, r in results.items():
+        if r.get("skipped"):
+            warnings_.append(
+                f"{species}: skipped — {r.get('reason', 'unknown')}"
+            )
+            continue
+        # All three are required for non-skipped species; missing means the
+        # train_species loop crashed in a way that should be a hard failure.
+        if "auc_test" not in r or "brier_test" not in r or "p_at_25_test" not in r:
+            failures.append(
+                f"{species}: missing gate metrics (auc_test/brier_test/p_at_25_test) — "
+                f"got keys {sorted(r.keys())}"
+            )
+            continue
+        auc = r["auc_test"]
+        brier = r["brier_test"]
+        p25 = r["p_at_25_test"]
+        # M-08 AUC gate with D-04/D-16 tautog fallback
+        if species == "tautog":
+            if auc < 0.65:
+                failures.append(
+                    f"tautog: AUC {auc:.3f} < 0.65 (low-label fallback floor — D-16)"
+                )
+            elif auc < 0.72:
+                warnings_.append(
+                    f"tautog: AUC {auc:.3f} in 0.65-0.72 range — pass-with-note per D-16"
+                )
+        else:
+            if auc < 0.72:
+                failures.append(
+                    f"{species}: AUC {auc:.3f} < 0.72 (M-08)"
+                )
+        # M-09 gates — Brier and P@25 are hard for every promoted species.
+        if brier > 0.22:
+            failures.append(
+                f"{species}: Brier {brier:.3f} > 0.22 (M-09)"
+            )
+        if p25 < 0.65:
+            failures.append(
+                f"{species}: P@25 {p25:.3f} < 0.65 (M-09)"
+            )
+    for w in warnings_:
+        log.warning("QUALITY-NOTE %s", w)
+    if failures:
+        raise RuntimeError(
+            "Quality gates failed:\n  " + "\n  ".join(failures)
+        )
 
 
 if __name__ == "__main__":
@@ -155,7 +242,8 @@ if __name__ == "__main__":
     )
     n = int(os.environ.get("N_TRIALS", "60"))
     tag = os.environ.get("RUN_TAG", "subset")
-    out = asyncio.run(run(run_tag=tag, n_trials=n))
+    enforce = os.environ.get("ENFORCE_GATES", "0") == "1" or tag == "full"
+    out = asyncio.run(run(run_tag=tag, n_trials=n, enforce_gates=enforce))
     log.info("Orchestrator complete. Results:")
     for sp, res in out.items():
         log.info("  %s → %s", sp, res)
