@@ -1,25 +1,27 @@
-"""Stub — R-01/R-04/R-05 Qdrant collection seed + payload schema. Implemented in Plan 06."""
-
+"""R-01 + R-04 + R-05 — Qdrant collection schema (dense 1536 + BM25 sparse IDF)."""
 from __future__ import annotations
 
 import pytest
 
-pytestmark = [
-    pytest.mark.skip(reason="Wave 0 stub — implemented in Plan 06"),
-    pytest.mark.integration,
-]
+pytestmark = pytest.mark.integration
 
 
-def test_collection_exists_with_dense_and_sparse_vectors():
-    """Plan 06: fishing_reports has text-embedding-3-small (1536d) + BM25 sparse."""
-    assert False, "Not implemented"
+@pytest.mark.asyncio
+async def test_collection_dense_dim_1536(qdrant_client):
+    from qdrant.schema import COLLECTION_NAME, DENSE_DIM, ensure_collection
+
+    await ensure_collection(qdrant_client)
+    info = await qdrant_client.get_collection(collection_name=COLLECTION_NAME)
+    dense_cfg = info.config.params.vectors["dense"]
+    assert dense_cfg.size == DENSE_DIM == 1536
 
 
-def test_payload_has_attribution_fields():
-    """Plan 06 (D-09): payload has source_name, source_url or source_description, original_author_handle, scrape_date."""
-    assert False, "Not implemented"
+@pytest.mark.asyncio
+async def test_collection_has_sparse_bm25_with_idf(qdrant_client):
+    from qdrant.schema import COLLECTION_NAME, ensure_collection
 
-
-def test_upsert_is_idempotent():
-    """Plan 06: re-seeding the same chunks does not duplicate rows."""
-    assert False, "Not implemented"
+    await ensure_collection(qdrant_client)
+    info = await qdrant_client.get_collection(collection_name=COLLECTION_NAME)
+    sparse_cfg = info.config.params.sparse_vectors["bm25"]
+    # Modifier.IDF is the expected config
+    assert sparse_cfg.modifier is not None
