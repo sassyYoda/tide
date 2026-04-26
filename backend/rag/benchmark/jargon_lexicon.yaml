@@ -1,0 +1,120 @@
+# NJ saltwater fishing jargon lexicon — starter stub.
+#
+# STATUS: STUB AT CHECKPOINT. The full 150-300-term lexicon (R-05 assumption A2,
+# STATE.md Blockers/Concerns) requires NJ saltwater fishing domain knowledge —
+# it is the human-action gate for plan 02-06.
+#
+# How to extend at the checkpoint:
+#   1. Optionally seed via GPT-4o-mini (see PLAN.md Task 3 step 1) — the LLM
+#      will produce ~100-150 terms that need human curation for accuracy
+#      (which "Wildwood crest" is real vs hallucinated, etc.)
+#   2. Skim corpus.jsonl with ``jq -r '.raw.body' | tr ' ' '\n' | sort -u``
+#      to surface terms the corpus actually uses but the LLM might miss
+#      (regional spot names, specific captain's-mate slang, etc.)
+#   3. Group into the categories below; aim for 30-60 terms per category
+#      to hit the 150-300 floor.
+#
+# Schema:
+#   <category>:
+#     - <term>          # single token or phrase
+
+version: 1
+status: stub-pending-curation
+
+# ---- Lure / artificial-bait names ------------------------------------------
+lures:
+  - SP Minnow
+  - bucktail
+  - Clark spoon
+  - Ava 17
+  - Ava 27
+  - bunker spoon
+  - poppers
+  - Sluggo
+  - paddle tail
+  - Tsunami
+  - jigs
+  - bucktails
+  - gulp
+  # ... user adds 30-60 more (mojo rigs, pencil poppers, swim shads, plugs, etc.)
+
+# ---- Natural baits ----------------------------------------------------------
+baits:
+  - bunker
+  - chunking bunker
+  - sand eels
+  - green crab
+  - killies
+  - clam
+  - clams
+  - mackerel
+  - spearing
+  - sandworms
+  - bloodworms
+  - bergalls
+  # ... user adds 30-60 more (eels, mossbunker, peanut bunker, mullet, etc.)
+
+# ---- Tide & water terms -----------------------------------------------------
+tide_water:
+  - slack water
+  - inlet rip
+  - flood tide
+  - dropping tide
+  - outgoing tide
+  - incoming tide
+  - mud line
+  - rip line
+  - swing tide
+  - dead low
+  - dead high
+  - new moon tide
+  # ... user adds 20-30 more
+
+# ---- Techniques -------------------------------------------------------------
+techniques:
+  - jigging
+  - chunking
+  - drifting
+  - trolling
+  - fly-lining
+  - live-lining
+  - snag-and-drop
+  - bottom fishing
+  - back-bay drifting
+  # ... user adds 15-25 more
+
+# ---- NJ location colloquialisms --------------------------------------------
+locations:
+  - the hook              # Sandy Hook
+  - the rockpile
+  - Barnegat Light
+  - Island Beach          # IBSP
+  - IBSP
+  - Wildwood crest
+  - Manasquan inlet
+  - the bay
+  - the inlet
+  - the surf
+  # ... user adds 30-50 more (specific jetties, channel markers, named rocks)
+
+# ---- Species nicknames ------------------------------------------------------
+species_nicknames:
+  - linesider              # striper
+  - rockfish               # striper
+  - schoolie               # juvenile striper
+  - striper                # canonical
+  - striped bass
+  - doormat fluke          # large fluke
+  - keeper
+  - chopper blue           # large bluefish
+  - cocktail blue          # small bluefish
+  - tog                    # tautog
+  - blackfish              # tautog
+  - weakie                 # weakfish
+  - hardhead               # weakfish
+  - fluke
+  - flounder
+  - bluefish
+  # ... user adds 10-20 more
+
+# Approximate term count (stub): ~70 terms. Floor = 150. Curation gap: ~80 terms.

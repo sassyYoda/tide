@@ -22,7 +22,13 @@ def test_recall_gate_constant_is_075():
 
 
 def test_benchmark_yaml_schema_when_committed():
-    """Post-curation: jargon_queries.yaml must have 20 cases with required fields."""
+    """Post-curation: jargon_queries.yaml must have 20 cases with required fields.
+
+    The plan ships a *draft* (LLM-shaped, expected_report_ids empty) under
+    `status: draft-pending-curation` at the human-action checkpoint. The
+    schema test skips while the file is in draft mode and only enforces the
+    full-id requirement once the user removes the draft marker.
+    """
     import pathlib
 
     import yaml
@@ -37,10 +43,10 @@ def test_benchmark_yaml_schema_when_committed():
     if not p.exists():
         pytest.skip("Benchmark not yet curated by user")
     doc = yaml.safe_load(p.read_text())
+    if isinstance(doc, dict) and doc.get("status") == "draft-pending-curation":
+        pytest.skip("Benchmark is in draft state — awaiting human curation at checkpoint")
     cases = doc.get("cases") if isinstance(doc, dict) else doc
-    assert (
-        len(cases) == 20
-    ), f"Expected 20 benchmark queries, got {len(cases)}"
+    assert len(cases) == 20, f"Expected 20 benchmark queries, got {len(cases)}"
     for c in cases:
         assert "query" in c
         assert "expected_report_ids" in c
