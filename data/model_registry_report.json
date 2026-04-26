@@ -1,0 +1,49 @@
+{
+  "striper": {
+    "promoted": false,
+    "reason": "gated",
+    "run_id": "6e58f050d0904d8a9a639524b8362672",
+    "auc_val": 1.0,
+    "auc_test": 0.21428571428571427,
+    "brier_test": 0.3752448400743028,
+    "precision_at_top25_test": 1.0,
+    "gate_failures": [
+      "AUC 0.214 < 0.72 (M-08)",
+      "Brier 0.375 > 0.22 (M-09)"
+    ]
+  },
+  "fluke": {
+    "promoted": false,
+    "reason": "no_eligible_runs"
+  },
+  "bluefish": {
+    "promoted": false,
+    "reason": "gated",
+    "run_id": "eed6aeec3b4c498988ccbe2dde7cbe6a",
+    "auc_val": 0.5,
+    "auc_test": 0.5,
+    "brier_test": 0.25,
+    "precision_at_top25_test": 1.0,
+    "gate_failures": [
+      "AUC 0.500 < 0.72 (M-08)",
+      "Brier 0.250 > 0.22 (M-09)"
+    ]
+  },
+  "weakfish": {
+    "promoted": false,
+    "reason": "no_eligible_runs"
+  },
+  "tautog": {
+    "promoted": false,
+    "reason": "gated",
+    "run_id": "5a4fef63f8df4f2ea42b4e256f9b8baf",
+    "auc_val": 1.0,
+    "auc_test": 0.5,
+    "brier_test": 0.24547608196735382,
+    "precision_at_top25_test": 1.0,
+    "gate_failures": [
+      "AUC 0.500 < 0.65 (D-16 fallback floor)",
+      "Brier 0.245 > 0.22 (M-09)"
+    ]
+  }
+}
