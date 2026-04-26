@@ -217,3 +217,9 @@ data/forum_manifest_titles.txt
 
 # Claude Code worktree state (per-session, not version-controlled)
 .claude/
+
+# MLflow tracking artifacts (local dev runs; production uses GCS — Phase 6)
+backend/mlruns/
+backend/mlartifacts/
+mlruns/
+mlartifacts/

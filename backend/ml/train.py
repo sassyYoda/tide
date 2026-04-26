@@ -252,14 +252,37 @@ def train_species(
         # treating the base estimator as already fitted (no resplitting).
         # Modern sklearn expresses this with FrozenEstimator; legacy API used
         # the cv="prefit" keyword. Both produce identical isotonic/sigmoid fits.
+        # FrozenEstimator's `fit` is a no-op so cross_val_predict re-fits do
+        # NOT corrupt the base — it just stitches predictions across folds.
         base = xgb.XGBClassifier(**best_params, early_stopping_rounds=50)
         base.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
 
-        if _HAS_FROZEN:
-            calibrated = CalibratedClassifierCV(FrozenEstimator(base), method=method)
-        else:  # pragma: no cover - legacy sklearn path
-            calibrated = CalibratedClassifierCV(base, method=method, cv="prefit")
-        calibrated.fit(X_val, y_val)
+        # Pick n_splits ≤ min(n_val, count_per_class). Default is 5 but tiny
+        # validation folds (<10 rows) need a smaller value or sklearn raises.
+        # When even 2-fold is impossible (a class has < 2 members in val),
+        # fall back to the uncalibrated base — better than crashing the run.
+        n_pos_val = int(np.asarray(y_val).sum())
+        n_neg_val = n_val - n_pos_val
+        if min(n_pos_val, n_neg_val) < 2:
+            log.warning(
+                "%s: val has too few of one class for calibration (pos=%d, neg=%d); "
+                "using uncalibrated base.",
+                species,
+                n_pos_val,
+                n_neg_val,
+            )
+            calibrated = base  # uncalibrated fallback
+            method = "uncalibrated"
+            mlflow.set_tag("calibration_fallback", "uncalibrated_thin_val")
+        else:
+            cv_folds = max(2, min(5, n_pos_val, n_neg_val))
+            if _HAS_FROZEN:
+                calibrated = CalibratedClassifierCV(
+                    FrozenEstimator(base), method=method, cv=cv_folds
+                )
+            else:  # pragma: no cover - legacy sklearn path
+                calibrated = CalibratedClassifierCV(base, method=method, cv="prefit")
+            calibrated.fit(X_val, y_val)
 
         # ---- Evaluate ----------------------------------------------------------
         auc_val = float(roc_auc_score(y_val, calibrated.predict_proba(X_val)[:, 1]))
@@ -277,7 +300,9 @@ def train_species(
                 "brier_test": brier_test,
                 "precision_at_top25_test": p_at_25,
                 "solunar_total_auc_lift": gate["solunar_total_auc_lift"],
-                "calibration_method_code": 1 if method == "isotonic" else 0,
+                "calibration_method_code": (
+                    2 if method == "isotonic" else (1 if method == "sigmoid" else 0)
+                ),
                 "n_leakage_flags": len(gate["leakage_flags"]),
             }
         )
