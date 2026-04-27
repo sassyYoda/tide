@@ -42,6 +42,15 @@ dependencies = [
     "selectolax>=0.3,<0.4",
     "instructor>=1,<2",
     "spacy>=3.8,<4",
+    # Phase 3 — LangGraph agent + FastAPI SSE
+    "langgraph==1.1.8",
+    "langchain-openai>=0.3,<0.4",
+    "langchain-anthropic>=0.3,<0.4",
+    "anthropic>=0.40,<1",
+    "langfuse==4.3.1",
+    "sse-starlette==3.3.4",
+    "rapidfuzz>=3.10,<4",
+    "slowapi>=0.1.9,<0.2",
 ]
 
 [tool.pytest.ini_options]

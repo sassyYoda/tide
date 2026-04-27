@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     fishbrain_user_agent: str = Field(
         "Tide/0.1 (+research-mvp)", alias="FISHBRAIN_USER_AGENT"
     )
+    # Phase 3 additions — LangGraph agent + Anthropic Synthesizer + Langfuse
+    anthropic_api_key: str = Field(..., alias="ANTHROPIC_API_KEY")
+    langfuse_secret_key: str = Field("", alias="LANGFUSE_SECRET_KEY")
+    langfuse_public_key: str = Field("", alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_host: str = Field("https://cloud.langfuse.com", alias="LANGFUSE_HOST")
+    rapidfuzz_threshold: int = Field(75, alias="RAPIDFUZZ_THRESHOLD")
 
 
 settings = Settings()  # import-time instantiation; fails fast on missing required env
