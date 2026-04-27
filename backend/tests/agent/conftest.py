@@ -5,14 +5,40 @@ Re-exports parent fixtures (db, redis, qdrant, respx_mock, etc.) and adds:
 - stub_planner_llm / stub_synth_llm: monkeypatch the LangChain ChatModels so
   unit tests never call real APIs.
 - jargon_lexicon: parsed YAML for nickname-canary tests.
+- migrated_ingest_db: alembic-applied Timescale URL for integration tests
+  (mirrors tests/tasks/conftest.py and tests/integration/test_ingest_e2e.py).
 """
 from __future__ import annotations
 
+import os
 import pathlib
+import subprocess
 from typing import Any
 
 import pytest
 import yaml
+
+BACKEND_DIR = pathlib.Path(__file__).resolve().parents[2]  # backend/
+
+
+def _run_alembic_upgrade(sync_url: str, async_url: str) -> None:
+    env = os.environ.copy()
+    env["DATABASE_SYNC_URL"] = sync_url
+    env["DATABASE_URL"] = async_url
+    env.setdefault("REDIS_URL", "redis://localhost:6379/0")
+    subprocess.run(
+        ["uv", "run", "alembic", "-c", "alembic.ini", "upgrade", "head"],
+        cwd=BACKEND_DIR,
+        env=env,
+        check=True,
+    )
+
+
+@pytest.fixture(scope="module")
+def migrated_ingest_db(timescale_sync_url, timescale_async_url) -> str:
+    """Apply all alembic migrations against the shared Timescale container."""
+    _run_alembic_upgrade(timescale_sync_url, timescale_async_url)
+    return timescale_sync_url
 
 # Re-export parent fixtures via pytest's plugin-discovery: simply having
 # tests/conftest.py at the parent level is sufficient. No re-export here.
