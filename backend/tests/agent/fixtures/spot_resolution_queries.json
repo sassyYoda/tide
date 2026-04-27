@@ -1,0 +1,22 @@
+[
+  {"query": "Barnegat Inlet — North Jetty", "expected_spot_name": "Barnegat Inlet — North Jetty", "notes": "exact canonical match"},
+  {"query": "Manasquan Inlet — South Jetty", "expected_spot_name": "Manasquan Inlet — South Jetty", "notes": "exact canonical match"},
+  {"query": "Seaside Heights Pier", "expected_spot_name": "Seaside Heights Pier", "notes": "exact canonical match"},
+  {"query": "Barnegat", "expected_spot_name": "Barnegat Inlet — North Jetty", "notes": "prefix-only — picks first Barnegat-prefixed spot"},
+  {"query": "Sandy", "expected_spot_name": null, "notes": "Sandy Hook not in pilot 30 — must fall through to lat/lon or no-pin"},
+  {"query": "Manasquan", "expected_spot_name": "Manasquan Inlet — North Jetty", "notes": "prefix — first Manasquan match"},
+  {"query": "Island Beach", "expected_spot_name": "Island Beach State Park — A7 Pocket", "notes": "prefix — picks first IBSP variant"},
+  {"query": "barneget", "expected_spot_name": "Barnegat Inlet — North Jetty", "notes": "typo — Levenshtein"},
+  {"query": "manaaquan inlet", "expected_spot_name": "Manasquan Inlet — North Jetty", "notes": "typo — doubled-vowel"},
+  {"query": "seasid heights", "expected_spot_name": "Seaside Heights Pier", "notes": "typo — partial"},
+  {"query": "IBSP", "expected_spot_name": "Island Beach State Park — A7 Pocket", "notes": "acronym — Island Beach State Park (RESEARCH Q5: WRatio handles acronyms via subset match)"},
+  {"query": "BISP", "expected_spot_name": null, "notes": "non-canonical acronym — should not resolve to anything (BISP = Brigantine Island? Not in pilot)"},
+  {"query": "shark river inlet", "expected_spot_name": "Shark River Inlet — North Jetty", "notes": "near-canonical — missing the jetty suffix"},
+  {"query": "Forked River", "expected_spot_name": "Forked River Mouth", "notes": "prefix match — drops 'Mouth' suffix"},
+  {"query": "Toms River mouth", "expected_spot_name": "Toms River Mouth", "notes": "case-only difference"},
+  {"query": "Holgate", "expected_spot_name": "Holgate Beach — South End", "notes": "single-word prefix"},
+  {"query": "tices shoal", "expected_spot_name": "Tices Shoal", "notes": "case-only"},
+  {"query": "Sedge Islands", "expected_spot_name": "Sedge Islands", "notes": "exact canonical match"},
+  {"query": "Cape May Inlet", "expected_spot_name": null, "notes": "Cape May not in pilot 30 — should fall through to None"},
+  {"query": "Casco Bay Maine", "expected_spot_name": null, "notes": "out of NJ — must fall through"}
+]
