@@ -1,0 +1,181 @@
+"""POST /api/v1/query — SSE endpoint wiring iter_sse_events.
+
+Wave 4 layout (W-4 in 03-PATTERNS.md): the route emits an initial
+``progress(planner)`` event the moment the stream opens — BEFORE invoking
+the LangGraph runtime — so the client receives its first byte well within
+the A-07 / P-03 2 s budget. The runtime (agent.runtime.iter_sse_events)
+ALSO emits its own ``progress(planner)`` after the planner-update arrives
+to keep its unit tests deterministic. The route layer does NOT de-duplicate
+on the wire; the frontend treats consecutive ``progress`` events with the
+same stage idempotently. (See the runtime module docstring for the
+rationale.)
+
+Cache (D-02.1, partial): the result cache write keys on
+sha256(normalized_query + canonical_species + spot_id + time_window_label).
+Read path is post-graph only in this round — the pre-graph short-circuit
+needs canonical fields that aren't available until the Planner runs, and
+the planner-only-subgraph rewiring is out of scope here. NEVER use Python's
+built-in ``hash()`` for cache keys — non-deterministic across processes.
+``query_cache_key`` encapsulates the hashlib.sha256 hex digest.
+
+Rate limit (SEC-02 / L-05): @limiter.limit("20/hour"); the custom
+``RateLimitExceeded`` handler (api.middleware.rate_limit.rate_limit_handler)
+converts slowapi's 429 into a single SSE ``error`` event with
+``code='rate_limited'`` (not an HTTP 429 JSON body). The decorator runs
+BEFORE the response stream begins (slowapi's standard pattern; Pitfall 2).
+
+Pydantic (SEC-06): query is bounded to 500 chars at the validation layer.
+Body validation failures return HTTP 422 — the frontend treats those as
+client-side errors; not stream-level errors.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any, AsyncIterator
+
+from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel, Field
+from redis.asyncio import Redis
+from sse_starlette.sse import EventSourceResponse
+
+from agent.runtime import iter_sse_events
+from agent.sse_protocol import (
+    RecommendationPayload,
+    make_error_payload,
+    make_progress_payload,
+)
+from api.middleware.rate_limit import limiter
+from app.deps.redis import get_redis
+from cache.query_cache import (
+    put_cached_query,
+    query_cache_key,
+)
+
+log = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+class LocationHint(BaseModel):
+    """Optional spatial context for spot resolution (D-05)."""
+
+    lat: float | None = None
+    lon: float | None = None
+    spot_name: str | None = Field(default=None, max_length=200)
+
+
+class QueryBody(BaseModel):
+    """User query body. SEC-06 bound: max_length=500 on the natural-language query."""
+
+    query: str = Field(..., min_length=1, max_length=500)
+    location_hint: LocationHint | None = None
+
+
+@router.post("/query")
+@limiter.limit("20/hour")
+async def query(
+    request: Request,  # required positional for slowapi key_func
+    body: QueryBody,
+    redis: Redis = Depends(get_redis),
+) -> EventSourceResponse:
+    """Stream a recommendation for one natural-language fishing query.
+
+    Returns ``EventSourceResponse`` whose generator yields events in the
+    locked sequence (in-scope happy path):
+
+        progress(planner)  ← emitted by the ROUTE at stream open (W-4)
+        progress(planner)  ← emitted by the runtime after planner update
+        progress(data_fetcher)
+        partial_conditions
+        progress(rag_retriever)
+        progress(synthesizer)
+        recommendation
+    """
+    body_dict = body.model_dump()
+    return EventSourceResponse(_event_generator(request, body_dict, redis))
+
+
+async def _event_generator(
+    request: Request,
+    body: dict[str, Any],
+    redis: Redis,
+) -> AsyncIterator[dict]:
+    """Translate iter_sse_events tuples into sse-starlette dict events.
+
+    W-4 first-byte guarantee: yields ``progress(planner)`` IMMEDIATELY (before
+    the LangGraph stream is opened) so the client sees activity within the
+    A-07 / P-03 2 s budget.
+
+    Captures spot_id from the streamed ``partial_conditions`` event so the
+    post-graph result cache key reflects the canonical spot identity. Other
+    canonical fields (species_canonical, time_window_label) are not on the
+    SSE wire (the runtime payload whitelist excludes them — Pitfall 7) so
+    the cache key uses None for those slots — still deterministic, lower
+    hit rate. Uplift to a planner-only subgraph in a follow-up if measured
+    cache hit rate justifies it.
+    """
+    # W-4: first byte before the graph runs.
+    yield {
+        "event": "progress",
+        "data": make_progress_payload("planner").model_dump_json(),
+    }
+
+    final_payload: RecommendationPayload | None = None
+    final_spot_id: int | None = None
+    final_species: str | None = None
+    final_time_window: str | None = None
+
+    try:
+        async for ev_type, payload in iter_sse_events(body):
+            if await request.is_disconnected():
+                log.info("query: client disconnected mid-stream")
+                break
+
+            yield {"event": ev_type, "data": payload.model_dump_json()}
+
+            if ev_type == "partial_conditions":
+                # Capture spot identity for the post-graph cache key (D-02.1).
+                final_spot_id = getattr(payload, "spot_id", None)
+            elif ev_type == "recommendation":
+                final_payload = payload  # type: ignore[assignment]
+                # RecommendationPayload exposes spot_id; species/time_window
+                # are not on the wire whitelist. Re-confirm spot_id from the
+                # final payload (overrides the partial_conditions snapshot).
+                p_spot = getattr(payload, "spot_id", None)
+                if p_spot is not None:
+                    final_spot_id = p_spot
+    except Exception as e:  # noqa: BLE001 — last-resort safety net
+        # iter_sse_events is documented as never-raising (it converts
+        # exceptions to a terminal error event). This catch exists for
+        # belt-and-braces protection against future runtime changes.
+        log.exception("query: unexpected error in event_generator: %s", e)
+        err = make_error_payload("internal", "Unexpected error.", None)
+        yield {"event": "error", "data": err.model_dump_json()}
+        return
+
+    # Post-graph cache write — best-effort, no impact on the delivered stream.
+    # Key construction per D-02.1: sha256(normalized_query + canonical_species
+    # + spot_id + time_window_label). All four inputs are deterministic;
+    # ``query_cache_key`` MUST use hashlib.sha256, NEVER Python's built-in
+    # ``hash()`` (PYTHONHASHSEED is randomized across processes).
+    if final_payload is not None:
+        try:
+            refined_key = query_cache_key(
+                body.get("query", ""),
+                final_species,
+                final_spot_id,
+                final_time_window,
+            )
+            await put_cached_query(
+                redis,
+                refined_key,
+                {
+                    "event": "recommendation",
+                    "payload": final_payload.model_dump(mode="json"),
+                },
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("query: cache write failed (non-fatal): %s", e)
+
+
+__all__ = ["router", "QueryBody", "LocationHint"]
