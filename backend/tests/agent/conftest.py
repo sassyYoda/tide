@@ -7,16 +7,24 @@ Re-exports parent fixtures (db, redis, qdrant, respx_mock, etc.) and adds:
 - jargon_lexicon: parsed YAML for nickname-canary tests.
 - migrated_ingest_db: alembic-applied Timescale URL for integration tests
   (mirrors tests/tasks/conftest.py and tests/integration/test_ingest_e2e.py).
+- qdrant_container: session-scoped Qdrant testcontainer (mirrors the fixture
+  in tests/rag/conftest.py — that one isn't visible here because pytest only
+  discovers conftests along the path to the test file, and tests/agent/ is
+  a sibling of tests/rag/).
 """
 from __future__ import annotations
 
 import os
 import pathlib
 import subprocess
+import time
 from typing import Any
+from urllib.error import URLError
+from urllib.request import urlopen
 
 import pytest
 import yaml
+from testcontainers.core.container import DockerContainer
 
 BACKEND_DIR = pathlib.Path(__file__).resolve().parents[2]  # backend/
 
@@ -42,6 +50,42 @@ def migrated_ingest_db(timescale_sync_url, timescale_async_url) -> str:
 
 # Re-export parent fixtures via pytest's plugin-discovery: simply having
 # tests/conftest.py at the parent level is sufficient. No re-export here.
+
+
+def _wait_qdrant_ready(host: str, port: int, timeout: float = 60.0) -> None:
+    """Poll Qdrant /readyz until 200 or timeout — matches tests/rag/conftest.py."""
+    deadline = time.monotonic() + timeout
+    url = f"http://{host}:{port}/readyz"
+    last_err: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            with urlopen(url, timeout=2.0) as resp:
+                if resp.status == 200:
+                    return
+        except (URLError, ConnectionError, OSError) as e:
+            last_err = e
+        time.sleep(0.5)
+    raise RuntimeError(
+        f"Qdrant container did not become ready within {timeout}s: {last_err}"
+    )
+
+
+@pytest.fixture(scope="session")
+def qdrant_container():
+    """Session-scoped Qdrant container — mirror of tests/rag/conftest.py fixture."""
+    ctr = (
+        DockerContainer("qdrant/qdrant:v1.17.1")
+        .with_exposed_ports(6333)
+        .with_env("QDRANT__SERVICE__HTTP_PORT", "6333")
+    )
+    ctr.start()
+    try:
+        host = ctr.get_container_host_ip()
+        port = int(ctr.get_exposed_port(6333))
+        _wait_qdrant_ready(host, port)
+        yield ctr
+    finally:
+        ctr.stop()
 
 LEXICON_PATH = (
     pathlib.Path(__file__).resolve().parents[2]
