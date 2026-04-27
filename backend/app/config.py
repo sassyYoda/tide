@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     langfuse_secret_key: str = Field("", alias="LANGFUSE_SECRET_KEY")
     langfuse_public_key: str = Field("", alias="LANGFUSE_PUBLIC_KEY")
     langfuse_host: str = Field("https://cloud.langfuse.com", alias="LANGFUSE_HOST")
-    rapidfuzz_threshold: int = Field(75, alias="RAPIDFUZZ_THRESHOLD")
+    rapidfuzz_threshold: int = Field(65, alias="RAPIDFUZZ_THRESHOLD")
 
 
 settings = Settings()  # import-time instantiation; fails fast on missing required env

@@ -262,6 +262,9 @@ species_nicknames:
   - blackfish              # tautog
   - weakie                 # weakfish
   - hardhead               # weakfish
+  - sea trout              # weakfish (NJ saltwater colloquial — A2 Wave-0 fix)
+  - sea-trout              # weakfish
+  - tide-runner            # weakfish
   - fluke
   - flounder
   - bluefish
