@@ -44,6 +44,7 @@ dependencies = [
     "spacy>=3.8,<4",
     # Phase 3 — LangGraph agent + FastAPI SSE
     "langgraph==1.1.8",
+    "langchain>=1.0,<2",
     "langchain-openai>=0.3,<0.4",
     "langchain-anthropic>=0.3,<0.4",
     "anthropic>=0.40,<1",
