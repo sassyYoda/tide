@@ -71,6 +71,18 @@ def test_client(migrated_api_db, timescale_async_url, redis_container):
     app = create_app()
     app.dependency_overrides[get_session] = _session_override
     app.dependency_overrides[get_redis] = _redis_override
+
+    # Phase 3 (SEC-02): rate-limiter state must be reset between tests so the
+    # 20-req/hr bucket is fresh. Without this, the cumulative tests in this
+    # module quickly exhaust the bucket and earlier tests start receiving
+    # rate_limited error events instead of the expected payloads.
+    try:
+        from api.middleware.rate_limit import limiter
+
+        limiter.reset()
+    except Exception:  # noqa: BLE001 — older slowapi may lack reset()
+        pass
+
     client = TestClient(app)
     try:
         yield {
@@ -90,8 +102,14 @@ def parse_sse_stream(raw: bytes | str) -> list[tuple[str, dict[str, Any] | None]
 
     Accepts either ``bytes`` or ``str``. Per W3C: events are blank-line separated;
     each event has lines like ``event: <name>`` and ``data: <json>``.
+
+    sse-starlette emits CRLF (``\\r\\n``) line endings, so the event-boundary
+    delimiter on the wire is ``\\r\\n\\r\\n`` — not ``\\n\\n``. Normalise to LF
+    before splitting so this parser works with both line-ending conventions.
     """
     text = raw.decode() if isinstance(raw, (bytes, bytearray)) else raw
+    # Normalise CRLF → LF so the blank-line splitter works for both encodings.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     events: list[tuple[str, dict[str, Any] | None]] = []
     for block in text.split("\n\n"):
         block = block.strip()
@@ -116,6 +134,80 @@ def parse_sse_stream(raw: bytes | str) -> list[tuple[str, dict[str, Any] | None]
             payload = None
         events.append((ev_type, payload))
     return events
+
+
+# ─── Phase 3 LLM stubs (mirrored from tests/agent/conftest.py) ─────────
+# pytest only discovers conftests along the path to the test file; tests/api/
+# is a sibling of tests/agent/ so we duplicate the relevant fixtures here.
+# A future Phase 5 conftest consolidation should hoist these to tests/conftest.py.
+
+
+class _StubMessage:
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+
+class _StubChatOpenAI:
+    """Mimics langchain_openai.ChatOpenAI for unit tests.
+
+    Set ``_StubChatOpenAI.next_response = <PlannerOutput-or-AIMessage>`` before
+    calling .invoke / .ainvoke to control the response.
+    """
+
+    next_response: Any = None
+
+    def __init__(self, *_a: Any, **_kw: Any) -> None:
+        pass
+
+    def with_structured_output(self, _schema: Any) -> "_StubChatOpenAI":
+        return self
+
+    async def ainvoke(self, _msgs: Any, **_kw: Any) -> Any:
+        return self.next_response
+
+    def invoke(self, _msgs: Any, **_kw: Any) -> Any:
+        return self.next_response
+
+
+class _StubChatAnthropic:
+    """Mimics langchain_anthropic.ChatAnthropic for unit tests."""
+
+    next_response: Any = None
+
+    def __init__(self, *_a: Any, **_kw: Any) -> None:
+        pass
+
+    async def ainvoke(self, _msgs: Any, **_kw: Any) -> Any:
+        return self.next_response or _StubMessage("stub response")
+
+    def invoke(self, _msgs: Any, **_kw: Any) -> Any:
+        return self.next_response or _StubMessage("stub response")
+
+
+@pytest.fixture
+def stub_planner_llm(monkeypatch: pytest.MonkeyPatch) -> type[_StubChatOpenAI]:
+    monkeypatch.setattr("langchain_openai.ChatOpenAI", _StubChatOpenAI)
+    _StubChatOpenAI.next_response = None
+    return _StubChatOpenAI
+
+
+@pytest.fixture
+def stub_synth_llm(monkeypatch: pytest.MonkeyPatch) -> type[_StubChatAnthropic]:
+    monkeypatch.setattr("langchain_anthropic.ChatAnthropic", _StubChatAnthropic)
+    _StubChatAnthropic.next_response = None
+    return _StubChatAnthropic
+
+
+@pytest.fixture
+def lazy_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip MLflow load at import — mirrors ml.model._maybe_load_at_import opt-out."""
+    monkeypatch.setenv("TIDE_LAZY_MODEL_LOAD", "1")
+
+
+@pytest.fixture
+def lazy_spots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip Postgres-driven spot load at import — mirrors module-level singleton opt-out."""
+    monkeypatch.setenv("TIDE_LAZY_SPOT_LOAD", "1")
 
 
 @pytest.fixture
