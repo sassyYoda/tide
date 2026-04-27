@@ -25,11 +25,13 @@ celery_app = Celery(
     broker=settings.redis_url,
     backend=settings.redis_url,  # results also in Redis
     # Plan 05 wires the ingest task modules; Plan 07 adds the backup task.
+    # Phase 2 Plan 07 adds the per-15-min ML scorer.
     include=[
         "celery_app.tasks.noaa",
         "celery_app.tasks.meteo",
         "celery_app.tasks.solunar",
         "celery_app.tasks.backup",
+        "celery_app.tasks.scorer",
     ],
 )
 
@@ -38,6 +40,7 @@ _ingest_task_modules = (
     "celery_app.tasks.meteo",
     "celery_app.tasks.solunar",
     "celery_app.tasks.backup",
+    "celery_app.tasks.scorer",
 )
 
 celery_app.conf.update(
@@ -70,6 +73,12 @@ celery_app.conf.update(
         "backup_timescaledb": {
             "task": "celery_app.tasks.backup.backup_timescaledb_to_gcs",
             "schedule": crontab(hour=4, minute=15),  # 04:15 UTC daily
+        },
+        # Phase 2 Plan 07 — per-spot × per-species ML scorer (M-11).
+        # Cadence aligns with NOAA + feature freshness budget.
+        "score_all_spots": {
+            "task": "celery_app.tasks.scorer.score_all_spots",
+            "schedule": crontab(minute="*/15"),
         },
     },
 )
