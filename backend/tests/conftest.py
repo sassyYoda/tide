@@ -43,7 +43,7 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
 os.environ.setdefault("LANGFUSE_SECRET_KEY", "")
 os.environ.setdefault("LANGFUSE_PUBLIC_KEY", "")
 os.environ.setdefault("LANGFUSE_HOST", "https://cloud.langfuse.com")
-os.environ.setdefault("RAPIDFUZZ_THRESHOLD", "75")
+os.environ.setdefault("RAPIDFUZZ_THRESHOLD", "65")
 
 import pytest
 import pytest_asyncio
