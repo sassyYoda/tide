@@ -1,0 +1,12 @@
+[
+  {"query": "Where can I get into some blackfish near the inlet this weekend?", "expected_canonical": "tautog", "expected_intent": "fishing-recommendation"},
+  {"query": "Looking for schoolies on a high tide", "expected_canonical": "striper", "expected_intent": "fishing-recommendation"},
+  {"query": "Best time for doormat fluking?", "expected_canonical": "fluke", "expected_intent": "fishing-recommendation"},
+  {"query": "Cocktail blues running at the inlet?", "expected_canonical": "bluefish", "expected_intent": "fishing-recommendation"},
+  {"query": "Where do sea trout hit on outgoing tide?", "expected_canonical": "weakfish", "expected_intent": "fishing-recommendation"},
+  {"query": "Linesider season opener — best surf spots?", "expected_canonical": "striper", "expected_intent": "fishing-recommendation"},
+  {"query": "Choppers in the back bay this week?", "expected_canonical": "bluefish", "expected_intent": "fishing-recommendation"},
+  {"query": "Whitelegger tog on green crab?", "expected_canonical": "tautog", "expected_intent": "fishing-recommendation"},
+  {"query": "Fluker spots near Sandy Hook?", "expected_canonical": "fluke", "expected_intent": "fishing-recommendation"},
+  {"query": "Weakies on outgoing in the channel?", "expected_canonical": "weakfish", "expected_intent": "fishing-recommendation"}
+]
