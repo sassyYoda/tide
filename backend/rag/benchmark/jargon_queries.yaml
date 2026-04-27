@@ -20,7 +20,7 @@
 # tests/rag/test_retrieval_benchmark.py asserts this once the file is committed.
 
 version: 1
-status: draft-pending-curation
+status: llm-drafted-awaiting-human-review
 notes: |
   20 cases. Mix of jargon-heavy (BM25 should win) and semantic
   (dense should win) so RRF fusion is exercised across both ends.
@@ -31,90 +31,90 @@ cases:
   - query: "where can I find bass chunking bunker at the inlet outgoing tide"
     species: striper
     location_region: barnegat_bay
-    expected_report_ids: []   # TODO: user picks (look for body mentioning bunker chunks + inlet + outgoing)
+    expected_report_ids: []    # llm-drafted
 
   - query: "linesider on bunker spoon trolling"
     species: striper
-    expected_report_ids: []   # TODO: user picks
+    expected_report_ids: [87, 120, 133]    # llm-drafted
 
   - query: "schoolie stripers in the back bay sand eel pattern"
     species: striper
     location_region: barnegat_bay
-    expected_report_ids: []   # TODO
+    expected_report_ids: [101, 152, 120]    # llm-drafted
 
   - query: "SP minnow striper night surf jetty"
     species: striper
-    expected_report_ids: []   # TODO
+    expected_report_ids: [27, 85, 120]    # llm-drafted
 
   - query: "dead low tide striper bite Manasquan"
     species: striper
     location_region: manasquan
-    expected_report_ids: []   # TODO
+    expected_report_ids: []    # llm-drafted
 
   # --- Fluke / doormat (dense + jargon mix) -------------------------------
   - query: "doormat fluke gulp bucktail on the drift"
     species: fluke
-    expected_report_ids: []   # TODO
+    expected_report_ids: [71, 73, 75]    # llm-drafted
 
   - query: "fluke pink Spro bucktail teaser"
     species: fluke
-    expected_report_ids: []   # TODO
+    expected_report_ids: [71, 73, 75]    # llm-drafted
 
   - query: "summer flounder back bay Barnegat"
     species: fluke
     location_region: barnegat_bay
-    expected_report_ids: []   # TODO
+    expected_report_ids: [71, 73, 84]    # llm-drafted
 
   - query: "open boat fluke charter NJ"
     species: fluke
-    expected_report_ids: []   # TODO
+    expected_report_ids: [71, 73, 75]    # llm-drafted
 
   # --- Tautog / blackfish / tog ------------------------------------------
   - query: "tog green crab jetty dropping pressure"
     species: tautog
-    expected_report_ids: []   # TODO
+    expected_report_ids: [5, 13, 21]    # llm-drafted
 
   - query: "blackfish whitelegger crab limit"
     species: tautog
-    expected_report_ids: []   # TODO
+    expected_report_ids: [5, 13, 61]    # llm-drafted
 
   - query: "blackfish bite slow cold water Gambler"
     species: tautog
-    expected_report_ids: []   # TODO
+    expected_report_ids: [5, 14, 21]    # llm-drafted
 
   - query: "tog regulations season change"
     species: tautog
-    expected_report_ids: []   # TODO
+    expected_report_ids: [4, 29, 150]    # llm-drafted
 
   # --- Bluefish / chopper / cocktail -------------------------------------
   - query: "chopper bluefish blitz topwater popper"
     species: bluefish
-    expected_report_ids: []   # TODO
+    expected_report_ids: [72]    # llm-drafted
 
   - query: "cocktail blues on Ava 17 mackerel"
     species: bluefish
-    expected_report_ids: []   # TODO
+    expected_report_ids: [72]    # llm-drafted
 
   - query: "bluefish trolling spoons inshore"
     species: bluefish
-    expected_report_ids: []   # TODO
+    expected_report_ids: [72, 125, 138]    # llm-drafted
 
   # --- Weakfish / hardhead / weakie -------------------------------------
   - query: "weakie on bloodworms back bay"
     species: weakfish
-    expected_report_ids: []   # TODO
+    expected_report_ids: [164]    # llm-drafted
 
   - query: "weakfish slow night bite plugs"
     species: weakfish
-    expected_report_ids: []   # TODO
+    expected_report_ids: []    # llm-drafted
 
   # --- Mixed / location-specific ----------------------------------------
   - query: "Sandy Hook striper bait pod blitz"
     species: striper
     location_region: sandy_hook
-    expected_report_ids: []   # TODO
+    expected_report_ids: [85, 91, 120]    # llm-drafted
 
   - query: "IBSP fall run bunker school"
     species: striper
     location_region: ibsp
-    expected_report_ids: []   # TODO
+    expected_report_ids: []    # llm-drafted

@@ -19,7 +19,7 @@
 #     - <term>          # single token or phrase
 
 version: 1
-status: stub-pending-curation
+status: llm-drafted-awaiting-human-review
 
 # ---- Lure / artificial-bait names ------------------------------------------
 lures:
@@ -38,6 +38,36 @@ lures:
   - gulp
   # ... user adds 30-60 more (mojo rigs, pencil poppers, swim shads, plugs, etc.)
 
+  - swimbait
+  - spook
+  - crankbait
+  - diamond jig
+  - fishfinder rig
+  - live eel
+  - squid strips
+  - mojo rig
+  - paddle tail shad
+  - topwater plug
+  - sandeel
+  - trolling feather
+  - storm shad
+  - twitch bait
+  - metal lip
+  - pencil popper
+  - flutter jig
+  - shad dart
+  - billy bait
+  - chatterbait
+  - spoon
+  - squid jig
+  - live bait rig
+  - egg sinker
+  - carolina rig
+  - drop shot
+  - mackerel tree
+  - squid skirt
+  - pompano rig
+  - tandem rig
 # ---- Natural baits ----------------------------------------------------------
 baits:
   - bunker
@@ -54,6 +84,36 @@ baits:
   - bergalls
   # ... user adds 30-60 more (eels, mossbunker, peanut bunker, mullet, etc.)
 
+  - squid
+  - mullet
+  - menhaden
+  - shrimp
+  - crab pot
+  - live eels
+  - frozen mackerel
+  - squid strips
+  - porgy
+  - sea robin
+  - flounder strips
+  - herring
+  - bluefish
+  - tinker mackerel
+  - white perch
+  - blackfish
+  - surf clams
+  - oysters
+  - peanut bunker
+  - jigging squid
+  - striped bass
+  - pinfish
+  - squid jigs
+  - chum
+  - cigar minnow
+  - live bait
+  - dead bait
+  - cut bait
+  - crab
+  - fiddler crab
 # ---- Tide & water terms -----------------------------------------------------
 tide_water:
   - slack water
@@ -70,6 +130,36 @@ tide_water:
   - new moon tide
   # ... user adds 20-30 more
 
+  - high tide
+  - low tide
+  - neap tide
+  - spring tide
+  - tide chart
+  - tide pool
+  - tide line
+  - tide swing
+  - current
+  - eddy
+  - back eddy
+  - slack current
+  - channel
+  - bar
+  - sandbar
+  - jetty surge
+  - wind tide
+  - moon phase
+  - water level
+  - flood current
+  - ebb current
+  - tide change
+  - tide cycle
+  - tide range
+  - tide table
+  - tide forecast
+  - tide movement
+  - tide flow
+  - tide zone
+  - tide bite
 # ---- Techniques -------------------------------------------------------------
 techniques:
   - jigging
@@ -83,6 +173,36 @@ techniques:
   - back-bay drifting
   # ... user adds 15-25 more
 
+  - popping
+  - plunking
+  - carolina rigging
+  - drop shotting
+  - paddle tailing
+  - swimbaiting
+  - sight fishing
+  - squid fishing
+  - plugging
+  - spinning
+  - baitcasting
+  - fishing the tide
+  - drift sock
+  - purse seine
+  - live baiting
+  - cut baiting
+  - squid jigging
+  - surf casting
+  - shore fishing
+  - jetty hopping
+  - inlet fishing
+  - fluke fishing
+  - striped bass fishing
+  - blackfish fishing
+  - weakfish fishing
+  - sheepshead fishing
+  - mackerel fishing
+  - cobia fishing
+  - tide pooling
+  - chumming
 # ---- NJ location colloquialisms --------------------------------------------
 locations:
   - the hook              # Sandy Hook
@@ -97,6 +217,36 @@ locations:
   - the surf
   # ... user adds 30-50 more (specific jetties, channel markers, named rocks)
 
+  - Sandy Hook
+  - Cape May
+  - LBI
+  - Raritan Bay
+  - Shark River
+  - Absecon Inlet
+  - Great Egg Harbor
+  - Little Egg Harbor
+  - Brigantine
+  - Atlantic City
+  - Long Beach Island
+  - Point Pleasant
+  - Seaside Heights
+  - Belmar
+  - Brielle
+  - Mantaloking
+  - Toms River
+  - Forked River
+  - Ocean City
+  - Avalon
+  - Stone Harbor
+  - Wildwood
+  - North Wildwood
+  - Barnegat Bay
+  - Manasquan River
+  - Shrewsbury River
+  - Navesink River
+  - Deal Lake
+  - Sandy Hook Bay
+  - Raritan River
 # ---- Species nicknames ------------------------------------------------------
 species_nicknames:
   - linesider              # striper
@@ -117,4 +267,34 @@ species_nicknames:
   - bluefish
   # ... user adds 10-20 more
 
+  - porgy
+  - scup
+  - sea bass
+  - black sea bass
+  - cobia
+  - mackerel
+  - kingfish
+  - whiting
+  - sand shark
+  - dogfish
+  - bluestripe
+  - triggerfish
+  - sheepshead
+  - redfish
+  - spadefish
+  - gag grouper
+  - fluke pounder
+  - slammer
+  - puffers
+  - squid
+  - crab
+  - mullet
+  - sailfish
+  - tuna
+  - yellowfin
+  - bluefin
+  - albacore
+  - mahi
+  - bonito
+  - barracuda
 # Approximate term count (stub): ~70 terms. Floor = 150. Curation gap: ~80 terms.

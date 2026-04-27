@@ -43,8 +43,9 @@ def test_benchmark_yaml_schema_when_committed():
     if not p.exists():
         pytest.skip("Benchmark not yet curated by user")
     doc = yaml.safe_load(p.read_text())
-    if isinstance(doc, dict) and doc.get("status") == "draft-pending-curation":
-        pytest.skip("Benchmark is in draft state — awaiting human curation at checkpoint")
+    draft_statuses = {"draft-pending-curation", "llm-drafted-awaiting-human-review"}
+    if isinstance(doc, dict) and doc.get("status") in draft_statuses:
+        pytest.skip(f"Benchmark in draft state ({doc.get('status')}) — awaiting human curation")
     cases = doc.get("cases") if isinstance(doc, dict) else doc
     assert len(cases) == 20, f"Expected 20 benchmark queries, got {len(cases)}"
     for c in cases:
