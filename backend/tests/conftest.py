@@ -38,6 +38,12 @@ os.environ.setdefault("REDDIT_CLIENT_ID", "")
 os.environ.setdefault("REDDIT_CLIENT_SECRET", "")
 os.environ.setdefault("REDDIT_USER_AGENT", "Tide/0.1 (test)")
 os.environ.setdefault("FISHBRAIN_USER_AGENT", "Tide/0.1 (test)")
+# Phase 3 additions — never block unit imports on real keys
+os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
+os.environ.setdefault("LANGFUSE_SECRET_KEY", "")
+os.environ.setdefault("LANGFUSE_PUBLIC_KEY", "")
+os.environ.setdefault("LANGFUSE_HOST", "https://cloud.langfuse.com")
+os.environ.setdefault("RAPIDFUZZ_THRESHOLD", "75")
 
 import pytest
 import pytest_asyncio
