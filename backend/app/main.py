@@ -19,7 +19,9 @@ from __future__ import annotations
 import os
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import REGISTRY, CollectorRegistry, make_asgi_app, multiprocess
+from slowapi.errors import RateLimitExceeded
 
 # Force-import ingest.metrics so Counter/Gauge/Histogram declarations register
 # with the default REGISTRY before /metrics is first scraped. Without this
@@ -29,6 +31,13 @@ from app import api  # noqa: F401 — touches deps so app.api is importable
 from app.api.conditions import router as conditions_router
 from app.api.health import router as health_router
 from ingest import metrics as _metrics_module  # noqa: F401 — register metrics
+
+# Phase 3 — agent SSE + scored-spots routes. Bare-import convention against
+# pythonpath=["."] in pytest + PYTHONPATH=backend in the runtime image. The
+# repo never prefixes imports with the package directory name; that path
+# does not resolve at runtime.
+from api.middleware.rate_limit import limiter, rate_limit_handler
+from api.v1 import router as v1_router
 
 
 def _build_metrics_registry() -> CollectorRegistry:
@@ -50,14 +59,38 @@ def _build_metrics_registry() -> CollectorRegistry:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Tide API", version="0.1.0")
-    # SKIP (WR-05): Per-IP rate limit (20/IP/hour — PROJECT.md quality bar)
-    # is intentionally DEFERRED out of Phase 1 (Data Foundation). The Redis
-    # infra needed as a slowapi storage backend is stood up here, but the
-    # middleware + 429 ErrorEnvelope contract is scoped to a later REL/SEC
-    # phase so Phase 1 stays focused on ingest correctness. Track as a
-    # Phase N follow-up; see REVIEW-FIX WR-05 for context.
+
+    # ─── CORS (API-04) ──────────────────────────────────────────────────
+    # Allow gettide.app + Vercel preview URLs + localhost dev. ``allow_origin_regex``
+    # covers any *.vercel.app preview deployment without listing them all.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "https://gettide.app",
+            "http://localhost:3000",
+            "http://localhost:3001",
+        ],
+        allow_origin_regex=r"https://.*\.vercel\.app",
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+        max_age=3600,
+    )
+
+    # ─── slowapi rate limiter (SEC-02 / L-05) ───────────────────────────
+    # WR-05 was a Phase 1 deferral; this fulfills it for Phase 3 traffic. The
+    # @limiter.limit decorator on ``api.v1.query`` enforces the 20/IP/hour
+    # budget; the custom handler converts RateLimitExceeded into a single
+    # SSE error event with code='rate_limited' (NOT an HTTP 429 JSON body).
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+    # ─── Routers ────────────────────────────────────────────────────────
+    # Phase 1
     app.include_router(conditions_router, prefix="/api/v1")
     app.include_router(health_router)
+    # Phase 3 — query SSE + scored-spots
+    app.include_router(v1_router, prefix="/api/v1")
+
     app.mount("/metrics", make_asgi_app(registry=_build_metrics_registry()))
     return app
 

@@ -6,8 +6,8 @@ Bare-import convention (locked, see backend/pyproject.toml [tool.pytest.ini_opti
     from api.v1.query import router as query_router
     from api.v1.spots import router as spots_router
 
-Do NOT use ``from backend.api.v1.*`` — ``backend.`` is not on the import path
-for this repo and would raise ``ModuleNotFoundError``.
+Do NOT prefix imports with the backend package name — that prefix is not on
+the import path for this repo and would raise ``ModuleNotFoundError``.
 """
 from fastapi import APIRouter
 

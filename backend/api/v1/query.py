@@ -14,9 +14,10 @@ Cache (D-02.1, partial): the result cache write keys on
 sha256(normalized_query + canonical_species + spot_id + time_window_label).
 Read path is post-graph only in this round — the pre-graph short-circuit
 needs canonical fields that aren't available until the Planner runs, and
-the planner-only-subgraph rewiring is out of scope here. NEVER use Python's
-built-in ``hash()`` for cache keys — non-deterministic across processes.
-``query_cache_key`` encapsulates the hashlib.sha256 hex digest.
+the planner-only-subgraph rewiring is out of scope here. The cache key
+uses hashlib.sha256 (deterministic across processes); see
+backend/cache/query_cache.py for the rationale on never using the
+built-in non-deterministic hashing primitive.
 
 Rate limit (SEC-02 / L-05): @limiter.limit("20/hour"); the custom
 ``RateLimitExceeded`` handler (api.middleware.rate_limit.rate_limit_handler)
@@ -156,8 +157,9 @@ async def _event_generator(
     # Post-graph cache write — best-effort, no impact on the delivered stream.
     # Key construction per D-02.1: sha256(normalized_query + canonical_species
     # + spot_id + time_window_label). All four inputs are deterministic;
-    # ``query_cache_key`` MUST use hashlib.sha256, NEVER Python's built-in
-    # ``hash()`` (PYTHONHASHSEED is randomized across processes).
+    # ``query_cache_key`` is implemented with hashlib.sha256 (see
+    # backend/cache/query_cache.py for why the non-deterministic Python
+    # primitive is unsafe here — PYTHONHASHSEED is randomized across processes).
     if final_payload is not None:
         try:
             refined_key = query_cache_key(
