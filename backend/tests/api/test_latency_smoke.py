@@ -63,15 +63,16 @@ def _skip_if_env_incomplete() -> None:
             "backend/.env or run this test only against staging."
         )
     try:
-        from ml.model import SPECIES_MODELS
+        from ml.model import SPECIES_MODELS  # noqa: F401 — import for side-effect of validation
     except Exception as e:
         pytest.skip(f"ml.model import failed: {e}")
-    if not SPECIES_MODELS:
-        pytest.skip(
-            "SPECIES_MODELS empty (no production model promoted). "
-            "P-06/P-02 latency cannot be exercised — re-run after Phase 2 "
-            "promotion."
-        )
+    # Path-3 (Phase 3 closeout): SPECIES_MODELS empty is EXPECTED given Phase 2's
+    # honest D-04 — 0/5 species cleared M-08/M-09 production gates. The Data
+    # Fetcher node's A-09 graceful path fires (ml_score_available=false flag)
+    # and the smoke still measures P-01 / P-02 / P-03 / P-05 against a real
+    # Anthropic call. P-06 (XGBoost ≤50ms) is not measurable in this state and
+    # is checked separately below — it logs a notice instead of failing the
+    # whole suite.
 
 
 def _percentile(samples: list[float], pct: float) -> float:

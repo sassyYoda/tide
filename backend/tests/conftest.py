@@ -20,8 +20,23 @@ testcontainer fixtures below.
 from __future__ import annotations
 
 import os
+import pathlib
 from datetime import datetime, timezone
 from typing import AsyncIterator, Iterator
+
+# Local-dev affordance — load backend/.env into os.environ BEFORE the setdefault
+# fallbacks below, so integration smokes that need real LLM keys (e.g.
+# tests/api/test_latency_smoke.py) see them. CI environments that pass keys via
+# the runner env are unaffected (already set → setdefault is a no-op). When
+# backend/.env doesn't exist (CI), this is also a no-op.
+_DOTENV = pathlib.Path(__file__).resolve().parent.parent / ".env"
+if _DOTENV.exists():
+    for _line in _DOTENV.read_text().splitlines():
+        _line = _line.strip()
+        if not _line or _line.startswith("#") or "=" not in _line:
+            continue
+        _k, _, _v = _line.partition("=")
+        os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 # Set env defaults BEFORE any import that pulls app.config (which validates env).
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://tide:tide@localhost:5432/tide")
