@@ -238,8 +238,13 @@ def _get_planner_llm() -> Any:
     """
     global _planner_llm
     if _planner_llm is None:
-        # W-4: timeout=1.5 leaves headroom inside A-07 first-byte ≤2s budget.
-        base = ChatOpenAI(model="gpt-4o-mini", timeout=1.5, max_retries=0)
+        # W-4 stream-open progress(planner) emit (in route) takes the first-byte
+        # constraint off the LLM. p95 end-to-end budget is 8s; 5s for the planner
+        # LLM call leaves 3s for the rest of the graph + Synthesizer. (Phase 3
+        # closeout adjustment — original 1.5s was too tight on cold-start
+        # GPT-4o-mini structured-output with the lexicon-inline system prompt;
+        # warm calls return in <1s but cold calls can take 2-4s.)
+        base = ChatOpenAI(model="gpt-4o-mini", timeout=5.0, max_retries=1)
         _planner_llm = base.with_structured_output(PlannerOutput)
     return _planner_llm
 
