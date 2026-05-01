@@ -60,6 +60,22 @@ def test_citation_regex_unmatched_chunk_returns_empty_chunk_id():
     assert cits[0]["chunk_id"] == ""
 
 
+def test_citation_regex_handles_commas_in_source_name():
+    """MR (Phase 3 code-review): source names with embedded commas must parse.
+
+    Source: "Manasquan, NJ Daily Report" — the regex must split on the LAST
+    comma inside the citation, not the first, so the source captures intact and
+    the date is correctly extracted.
+    """
+    from agent.nodes.synthesizer import _extract_citations
+
+    text = "[Report: Manasquan, NJ Daily Report, 2026-04-22]"
+    cits = _extract_citations(text, [])
+    assert len(cits) == 1
+    assert cits[0]["source"] == "Manasquan, NJ Daily Report"
+    assert cits[0]["date"] == "2026-04-22"
+
+
 # ─── Confidence label ───────────────────────────────────────────────────
 
 

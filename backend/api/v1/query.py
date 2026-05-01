@@ -139,12 +139,15 @@ async def _event_generator(
                 final_spot_id = getattr(payload, "spot_id", None)
             elif ev_type == "recommendation":
                 final_payload = payload  # type: ignore[assignment]
-                # RecommendationPayload exposes spot_id; species/time_window
-                # are not on the wire whitelist. Re-confirm spot_id from the
-                # final payload (overrides the partial_conditions snapshot).
+                # HR-01 (Phase 3 code-review): RecommendationPayload now widens
+                # to carry species_canonical + time_window_label so the cache
+                # key is complete. Without these, Phase 4's read-path wiring
+                # would silently return cross-species false hits.
                 p_spot = getattr(payload, "spot_id", None)
                 if p_spot is not None:
                     final_spot_id = p_spot
+                final_species = getattr(payload, "species_canonical", None)
+                final_time_window = getattr(payload, "time_window_label", None)
     except Exception as e:  # noqa: BLE001 — last-resort safety net
         # iter_sse_events is documented as never-raising (it converts
         # exceptions to a terminal error event). This catch exists for

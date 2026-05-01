@@ -208,16 +208,20 @@ class PlannerOutput(BaseModel):
     )
     location_hint_raw: str | None = Field(
         default=None,
+        max_length=120,  # MR (Phase 3 code-review): bound LLM output before it flows into cache hash
         description=(
             "Verbatim location string the user gave (e.g. 'Barnegat Inlet', "
-            "'IBSP', 'north jetty'). Null if no location mentioned."
+            "'IBSP', 'north jetty'). Null if no location mentioned. "
+            "Bounded to 120 chars."
         ),
     )
     time_window_label: str | None = Field(
         default=None,
+        max_length=80,  # MR: bound LLM output before it flows into cache hash
         description=(
             "Human time phrase like 'Saturday morning', 'this evening', "
-            "'tomorrow afternoon'. Null if user did not specify."
+            "'tomorrow afternoon'. Null if user did not specify. "
+            "Bounded to 80 chars."
         ),
     )
     reject_reason: Literal["non_mvp_species", "non_nj_geo", "non_fishing", "none"] = "none"

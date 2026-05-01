@@ -70,6 +70,14 @@ class RecommendationPayload(BaseModel):
     ml_score: float | None = None
     shap_top3: list[str] | None = None
     rag_latency_ms: float | None = None  # W-1: enables direct P-05 assertion in 03-06 smoke test
+    # HR-01 (Phase 3 code-review): canonical fields surfaced so the route can
+    # build a complete cache key without a planner-only-subgraph rewiring.
+    # Not secrets — species_canonical is a normalized echo of the user's
+    # nickname; time_window_label is the planner's parsed string ("Saturday
+    # morning"). Cross-species cache collisions in Phase 4 read path are the
+    # blast radius if these are absent — see query.py docstring.
+    species_canonical: str | None = None
+    time_window_label: str | None = None
 
 
 class ErrorPayload(BaseModel):
@@ -130,6 +138,8 @@ def make_recommendation_payload(state: TideAgentState) -> RecommendationPayload:
         ml_score=state.get("ml_score"),
         shap_top3=state.get("shap_top3"),
         rag_latency_ms=state.get("rag_latency_ms"),  # W-1: surfaced for P-05 smoke gate
+        species_canonical=state.get("species_canonical"),  # HR-01: complete cache key
+        time_window_label=state.get("time_window_label"),  # HR-01: complete cache key
     )
 
 
