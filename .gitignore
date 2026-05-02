@@ -218,6 +218,10 @@ data/forum_manifest_titles.txt
 # Claude Code worktree state (per-session, not version-controlled)
 .claude/
 
+# Planning artifacts (GSD workflow — local-only, not pushed to public remote)
+.planning/
+CLAUDE.md
+
 # MLflow tracking artifacts (local dev runs; production uses GCS — Phase 6)
 backend/mlruns/
 backend/mlartifacts/
