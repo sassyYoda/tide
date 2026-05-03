@@ -1,17 +1,38 @@
 {
   "ci": {
     "collect": {
-      "url": ["https://placeholder-replace-in-plan-08.vercel.app/map"],
+      "url": [
+        "https://tide-af3ojylxx-aryan-ahujas-projects-b54c1c1d.vercel.app/map"
+      ],
       "numberOfRuns": 3,
-      "settings": { "preset": "desktop" }
+      "settings": {
+        "preset": "desktop"
+      }
     },
     "assert": {
       "assertions": {
-        "largest-contentful-paint": ["error", { "maxNumericValue": 3000 }],
-        "categories:performance": ["warn", { "minScore": 0.9 }],
-        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
+        "largest-contentful-paint": [
+          "error",
+          {
+            "maxNumericValue": 3000
+          }
+        ],
+        "categories:performance": [
+          "warn",
+          {
+            "minScore": 0.9
+          }
+        ],
+        "cumulative-layout-shift": [
+          "error",
+          {
+            "maxNumericValue": 0.1
+          }
+        ]
       }
     },
-    "upload": { "target": "temporary-public-storage" }
+    "upload": {
+      "target": "temporary-public-storage"
+    }
   }
 }
