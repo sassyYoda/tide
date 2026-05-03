@@ -1,13 +1,13 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL
-
-if (!API_URL && typeof window !== "undefined") {
-  // eslint-disable-next-line no-console
-  console.warn("NEXT_PUBLIC_API_URL is not set; frontend will fail at runtime.")
-}
-
+// Read on each call so tests using `vi.stubEnv("NEXT_PUBLIC_API_URL", ...)` work
+// (env captured at module load doesn't see stubs registered later in beforeEach).
 export const apiUrl = (path: string): string => {
-  if (!API_URL) {
+  const base = process.env.NEXT_PUBLIC_API_URL
+  if (!base) {
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line no-console
+      console.warn("NEXT_PUBLIC_API_URL is not set; frontend will fail at runtime.")
+    }
     throw new Error("NEXT_PUBLIC_API_URL is not set")
   }
-  return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`
 }
