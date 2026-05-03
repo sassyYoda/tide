@@ -13,3 +13,4 @@ public/swe-worker-*.js
 playwright-report/
 test-results/
 .lighthouseci/
+.vercel
