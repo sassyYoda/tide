@@ -5,6 +5,7 @@
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 public/sw.js
 public/sw.js.map
 public/swe-worker-*.js

@@ -11,9 +11,12 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  experimental: {
-    typedRoutes: true,
-  },
+  typedRoutes: true,
+  // Empty turbopack stanza silences the "webpack config + no turbopack config"
+  // error that Next 16 emits when @serwist/next injects its webpack plugin.
+  // (Plan 07 may revisit if SW dev experience improves; for now SW is
+  // production-only via `disable: NODE_ENV === 'development'`.)
+  turbopack: {},
 }
 
 export default withSerwist(nextConfig)
