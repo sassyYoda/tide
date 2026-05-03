@@ -1,0 +1,101 @@
+[
+  {
+    "station_id": "8534720",
+    "station_name": "Atlantic City",
+    "observed_at": "2026-05-02T14:00:00Z",
+    "data_age_seconds": 420,
+    "tidal": { "water_level_m": 0.42, "phase": "falling", "next_high": null, "next_low": null },
+    "weather": { "wind_speed_kt": 8.2, "wind_direction_deg": 45, "air_temp_c": 14.1, "pressure_mb": 1015.3, "pressure_trend_label": "falling" },
+    "solunar": { "moon_phase": null, "illumination": 0.62, "lunar_day": 14, "quality_score": "good", "next_major_start": "2026-05-02T18:30:00Z", "next_major_end": "2026-05-02T20:30:00Z" },
+    "sunrise": "2026-05-02T05:50:00Z",
+    "sunset":  "2026-05-02T19:50:00Z"
+  },
+  {
+    "station_id": "8531680",
+    "station_name": "Sandy Hook",
+    "observed_at": "2026-05-02T13:55:00Z",
+    "data_age_seconds": 720,
+    "tidal": { "water_level_m": 0.18, "phase": "rising", "next_high": null, "next_low": null },
+    "weather": { "wind_speed_kt": 11.4, "wind_direction_deg": 60, "air_temp_c": 13.6, "pressure_mb": 1014.8, "pressure_trend_label": "steady" },
+    "solunar": { "moon_phase": null, "illumination": 0.62, "lunar_day": 14, "quality_score": "good", "next_major_start": "2026-05-02T18:35:00Z", "next_major_end": "2026-05-02T20:35:00Z" },
+    "sunrise": "2026-05-02T05:48:00Z",
+    "sunset":  "2026-05-02T19:52:00Z"
+  },
+  {
+    "station_id": "8533615",
+    "station_name": "Reedy Point",
+    "observed_at": "2026-05-02T13:45:00Z",
+    "data_age_seconds": 1320,
+    "tidal": { "water_level_m": 0.31, "phase": "falling", "next_high": null, "next_low": null },
+    "weather": { "wind_speed_kt": 7.9, "wind_direction_deg": 30, "air_temp_c": 14.4, "pressure_mb": 1015.0, "pressure_trend_label": "falling" },
+    "solunar": { "moon_phase": null, "illumination": 0.62, "lunar_day": 14, "quality_score": "fair", "next_major_start": "2026-05-02T18:25:00Z", "next_major_end": "2026-05-02T20:25:00Z" },
+    "sunrise": "2026-05-02T05:51:00Z",
+    "sunset":  "2026-05-02T19:48:00Z"
+  },
+  {
+    "station_id": "8536110",
+    "station_name": "Cape May",
+    "observed_at": "2026-05-02T13:50:00Z",
+    "data_age_seconds": 1020,
+    "tidal": { "water_level_m": 0.55, "phase": "rising", "next_high": null, "next_low": null },
+    "weather": { "wind_speed_kt": 9.1, "wind_direction_deg": 50, "air_temp_c": 14.0, "pressure_mb": 1015.2, "pressure_trend_label": "steady" },
+    "solunar": { "moon_phase": null, "illumination": 0.62, "lunar_day": 14, "quality_score": "good", "next_major_start": "2026-05-02T18:40:00Z", "next_major_end": "2026-05-02T20:40:00Z" },
+    "sunrise": "2026-05-02T05:53:00Z",
+    "sunset":  "2026-05-02T19:46:00Z"
+  },
+  {
+    "station_id": "8537121",
+    "station_name": "Ship John Shoal",
+    "observed_at": "2026-05-02T13:25:00Z",
+    "data_age_seconds": 2520,
+    "tidal": { "water_level_m": 0.27, "phase": "falling", "next_high": null, "next_low": null },
+    "weather": { "wind_speed_kt": 8.5, "wind_direction_deg": 40, "air_temp_c": 13.8, "pressure_mb": 1014.5, "pressure_trend_label": "falling" },
+    "solunar": { "moon_phase": null, "illumination": 0.62, "lunar_day": 14, "quality_score": "fair", "next_major_start": "2026-05-02T18:30:00Z", "next_major_end": "2026-05-02T20:30:00Z" },
+    "sunrise": "2026-05-02T05:50:00Z",
+    "sunset":  "2026-05-02T19:50:00Z"
+  },
+  {
+    "station_id": "8538886",
+    "station_name": "Tacony-Palmyra Bridge",
+    "observed_at": "2026-05-02T13:58:00Z",
+    "data_age_seconds": 540,
+    "tidal": { "water_level_m": 0.21, "phase": "rising", "next_high": null, "next_low": null },
+    "weather": { "wind_speed_kt": 6.4, "wind_direction_deg": 70, "air_temp_c": 14.3, "pressure_mb": 1015.4, "pressure_trend_label": "steady" },
+    "solunar": { "moon_phase": null, "illumination": 0.62, "lunar_day": 14, "quality_score": "good", "next_major_start": "2026-05-02T18:32:00Z", "next_major_end": "2026-05-02T20:32:00Z" },
+    "sunrise": "2026-05-02T05:49:00Z",
+    "sunset":  "2026-05-02T19:51:00Z"
+  },
+  {
+    "station_id": "8539094",
+    "station_name": "Burlington",
+    "observed_at": "2026-05-02T13:18:00Z",
+    "data_age_seconds": 2940,
+    "tidal": { "water_level_m": 0.16, "phase": "rising", "next_high": null, "next_low": null },
+    "weather": { "wind_speed_kt": 5.7, "wind_direction_deg": 80, "air_temp_c": 14.6, "pressure_mb": 1015.6, "pressure_trend_label": "steady" },
+    "solunar": { "moon_phase": null, "illumination": 0.62, "lunar_day": 14, "quality_score": "fair", "next_major_start": "2026-05-02T18:34:00Z", "next_major_end": "2026-05-02T20:34:00Z" },
+    "sunrise": "2026-05-02T05:48:00Z",
+    "sunset":  "2026-05-02T19:52:00Z"
+  },
+  {
+    "station_id": "8540433",
+    "station_name": "Marcus Hook",
+    "observed_at": "2026-05-02T13:05:00Z",
+    "data_age_seconds": 3720,
+    "tidal": { "water_level_m": 0.33, "phase": "falling", "next_high": null, "next_low": null },
+    "weather": { "wind_speed_kt": 7.1, "wind_direction_deg": 35, "air_temp_c": 14.2, "pressure_mb": 1015.1, "pressure_trend_label": "falling" },
+    "solunar": { "moon_phase": null, "illumination": 0.62, "lunar_day": 14, "quality_score": "fair", "next_major_start": "2026-05-02T18:28:00Z", "next_major_end": "2026-05-02T20:28:00Z" },
+    "sunrise": "2026-05-02T05:51:00Z",
+    "sunset":  "2026-05-02T19:49:00Z"
+  },
+  {
+    "station_id": "8557380",
+    "station_name": "Lewes",
+    "observed_at": "2026-05-02T13:56:00Z",
+    "data_age_seconds": 660,
+    "tidal": { "water_level_m": 0.49, "phase": "rising", "next_high": null, "next_low": null },
+    "weather": { "wind_speed_kt": 10.2, "wind_direction_deg": 55, "air_temp_c": 13.9, "pressure_mb": 1015.0, "pressure_trend_label": "steady" },
+    "solunar": { "moon_phase": null, "illumination": 0.62, "lunar_day": 14, "quality_score": "good", "next_major_start": "2026-05-02T18:36:00Z", "next_major_end": "2026-05-02T20:36:00Z" },
+    "sunrise": "2026-05-02T05:52:00Z",
+    "sunset":  "2026-05-02T19:47:00Z"
+  }
+]

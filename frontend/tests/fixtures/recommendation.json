@@ -1,0 +1,20 @@
+{
+  "recommendation_text": "Try Barnegat Inlet Saturday 6:30-9:00am. Outgoing tide + NE wind 8-12 kt favors stripers staging at the rip.",
+  "citations": [
+    { "source": "NJF", "date": "2026-04-22", "chunk_id": "njf-2026-04-22-001" },
+    { "source": "SO",  "date": "2026-04-20", "chunk_id": "so-2026-04-20-007" },
+    { "source": "NJF", "date": "2026-04-19", "chunk_id": "njf-2026-04-19-003" }
+  ],
+  "confidence_label": "High",
+  "retrieval_ok": true,
+  "ml_score_available": true,
+  "conditions_stale": false,
+  "data_age_seconds": 420.0,
+  "spot_id": 7,
+  "spot_name": "Barnegat Inlet",
+  "ml_score": 0.81,
+  "shap_top3": ["outgoing_tide_phase", "wind_direction_NE", "barometric_pressure_falling"],
+  "rag_latency_ms": 380.0,
+  "species_canonical": "striper",
+  "time_window_label": "Saturday morning"
+}
