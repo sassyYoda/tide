@@ -1,0 +1,128 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  lint-and-test:
+    name: Lint + typecheck + vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm tsc
+
+      - name: Vitest (unit + drift; drift skips when BACKEND_LIVE unset)
+        run: pnpm vitest run
+
+  playwright:
+    name: Playwright (Chromium + WebKit, mobile + desktop)
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Run Playwright tests
+        run: pnpm playwright
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+  lighthouse:
+    name: Lighthouse CI on Vercel preview
+    runs-on: ubuntu-latest
+    needs: playwright
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Wait for Vercel preview URL to be posted by the Vercel GitHub app, then
+      # rewrite lighthouserc.json's URL to the live preview, pre-warm with curl
+      # (Q2 cold-start mitigation), and run lhci. The Vercel-link checkpoint in
+      # Plan 04-02 Task 3 provisions the preview URL flow.
+      - name: Resolve Vercel preview URL
+        id: vercel
+        run: |
+          # Placeholder — replace with the actual Vercel preview URL resolver
+          # (e.g., zentered/vercel-preview-url action) once the Vercel project
+          # link is in place. Until then we skip lhci.
+          echo "preview_url=" >> "$GITHUB_OUTPUT"
+
+      - name: Pre-warm preview (Q2 cold-start absorption)
+        if: steps.vercel.outputs.preview_url != ''
+        run: |
+          curl --silent --max-time 30 "${{ steps.vercel.outputs.preview_url }}/map" || true
+          sleep 10
+
+      - name: Lighthouse CI
+        if: steps.vercel.outputs.preview_url != ''
+        env:
+          PREVIEW_URL: ${{ steps.vercel.outputs.preview_url }}
+        run: |
+          # Patch lighthouserc.json's URL placeholder.
+          tmp=$(mktemp)
+          jq --arg u "$PREVIEW_URL/map" '.ci.collect.url = [$u]' lighthouserc.json > "$tmp"
+          mv "$tmp" lighthouserc.json
+          pnpm lhci
