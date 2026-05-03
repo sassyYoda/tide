@@ -4,6 +4,7 @@ import { useSessionHistory } from "@/lib/useSessionHistory"
 import { QueryInput } from "@/components/query/QueryInput"
 import { QueryProgress } from "@/components/query/QueryProgress"
 import { QueryHistory } from "@/components/query/QueryHistory"
+import { RecommendationCard } from "@/components/query/RecommendationCard"
 
 const ERROR_COPY: Record<SSEErrorCode, string> = {
   rate_limited: "You've hit the 20-queries-per-hour limit. Try again in an hour.",
@@ -56,16 +57,7 @@ export default function HomePage() {
         )}
 
         {state.phase === "done" && (
-          // Plan 05 will replace this placeholder with <RecommendationCard recommendation={state.recommendation} />
-          <div data-testid="recommendation-placeholder" className="text-stone-700">
-            <p className="font-display text-xl text-tide-high">Recommendation ready</p>
-            <p className="mt-2 whitespace-pre-wrap text-sm">{state.recommendation.recommendation_text}</p>
-            <p className="mt-2 text-xs text-stone-500">
-              Confidence: {state.recommendation.confidence_label} •
-              Spot: {state.recommendation.spot_name ?? "—"} •
-              Citations: {state.recommendation.citations.length}
-            </p>
-          </div>
+          <RecommendationCard recommendation={state.recommendation} />
         )}
 
         {state.phase === "idle" && (
