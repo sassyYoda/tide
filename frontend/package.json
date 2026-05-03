@@ -1,0 +1,43 @@
+{
+  "name": "tide-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "gen:api-types": "openapi-typescript ${NEXT_PUBLIC_API_URL}/openapi.json --output lib/api-types.ts",
+    "gen:api-types:check": "openapi-typescript ${NEXT_PUBLIC_API_URL}/openapi.json --output /tmp/api-types.gen.ts && diff -q /tmp/api-types.gen.ts lib/api-types.ts"
+  },
+  "dependencies": {
+    "@serwist/next": "9.5.10",
+    "eventsource-parser": "3.0.8",
+    "maplibre-gl": "5.24.0",
+    "next": "16.2.4",
+    "react": "19.2",
+    "react-dom": "19.2",
+    "react-map-gl": "8.1.1",
+    "serwist": "9.5.10"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@lhci/cli": "^0.14.0",
+    "@playwright/test": "^1.49.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitest/ui": "^1.6.1",
+    "color-blind": "^0.1.3",
+    "color2k": "^2.0.3",
+    "jsdom": "^25.0.1",
+    "msw": "^2.7.0",
+    "openapi-typescript": "7.13.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^1.6.1"
+  }
+}
