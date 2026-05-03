@@ -7,8 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "gen:api-types": "openapi-typescript ${NEXT_PUBLIC_API_URL}/openapi.json --output lib/api-types.ts",
-    "gen:api-types:check": "openapi-typescript ${NEXT_PUBLIC_API_URL}/openapi.json --output /tmp/api-types.gen.ts && diff -q /tmp/api-types.gen.ts lib/api-types.ts"
+    "tsc": "tsc --noEmit",
+    "vitest": "vitest",
+    "playwright": "playwright test",
+    "lhci": "lhci autorun",
+    "gen:api-types": "tsx scripts/gen-api-types.ts",
+    "gen:api-types:check": "tsx scripts/gen-api-types.ts --check",
+    "gen:icons": "tsx scripts/gen-icons.ts"
   },
   "dependencies": {
     "@serwist/next": "9.5.10",
@@ -36,7 +41,10 @@
     "jsdom": "^25.0.1",
     "msw": "^2.7.0",
     "openapi-typescript": "7.13.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.0.0",
+    "to-ico": "^1.1.5",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2",
     "vitest": "^1.6.1"
   }
