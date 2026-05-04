@@ -98,30 +98,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Wait for Vercel preview URL to be posted by the Vercel GitHub app, then
+      # Wait for Vercel GitHub app to post the preview URL on the PR, then
       # rewrite lighthouserc.json's URL to the live preview, pre-warm with curl
-      # (Q2 cold-start mitigation), and run lhci. The Vercel-link checkpoint in
-      # Plan 04-02 Task 3 provisions the preview URL flow.
+      # (Q2 cold-start mitigation), and run lhci.
+      # Requires the Vercel GitHub app to be installed for the repo (it is — the
+      # Plan 04-02 Vercel-link checkpoint provisioned this).
       - name: Resolve Vercel preview URL
         id: vercel
-        run: |
-          # Placeholder — replace with the actual Vercel preview URL resolver
-          # (e.g., zentered/vercel-preview-url action) once the Vercel project
-          # link is in place. Until then we skip lhci.
-          echo "preview_url=" >> "$GITHUB_OUTPUT"
+        uses: zentered/vercel-preview-url@v1.1.9
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        with:
+          vercel_team_id: team_375uvHfwjEACwrYgFIO5vvRr
+          vercel_project_id: prj_ybfjrTmiyh5tRthK89thAtaOUnLX
 
       - name: Pre-warm preview (Q2 cold-start absorption)
-        if: steps.vercel.outputs.preview_url != ''
+        if: steps.vercel.outputs.preview_url_with_protocol != ''
         run: |
-          curl --silent --max-time 30 "${{ steps.vercel.outputs.preview_url }}/map" || true
+          curl --silent --max-time 30 "${{ steps.vercel.outputs.preview_url_with_protocol }}/map" || true
           sleep 10
 
       - name: Lighthouse CI
-        if: steps.vercel.outputs.preview_url != ''
+        if: steps.vercel.outputs.preview_url_with_protocol != ''
         env:
-          PREVIEW_URL: ${{ steps.vercel.outputs.preview_url }}
+          PREVIEW_URL: ${{ steps.vercel.outputs.preview_url_with_protocol }}
         run: |
-          # Patch lighthouserc.json's URL placeholder.
+          # Patch lighthouserc.json's URL with the live preview.
           tmp=$(mktemp)
           jq --arg u "$PREVIEW_URL/map" '.ci.collect.url = [$u]' lighthouserc.json > "$tmp"
           mv "$tmp" lighthouserc.json
