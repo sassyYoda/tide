@@ -75,3 +75,19 @@ module "gcs" {
   backend_sa_email = module.iam.cloudrun_backend_sa_email
   ingest_sa_email  = module.iam.cloudrun_ingest_sa_email
 }
+
+# Wave 1, plan 06-02 — e2-micro VM hosting TimescaleDB + Qdrant + Redis (D-03 + L-02).
+# Strict mem_limits + 4 GB swap (Pitfall P1) enforced inside the module.
+# config_bucket reuses tide-models (no-lifecycle) so the uploaded docker-compose.yml
+# and postgresql.conf survive long enough for cloud-init to gsutil cp them.
+module "compute_vm" {
+  source        = "./modules/compute-vm"
+  project_id    = var.project_id
+  region        = var.region
+  vpc_id        = module.network.vpc_id
+  subnet_id     = module.network.subnet_id
+  vm_sa_email   = module.iam.vm_sa_email
+  backup_bucket = module.gcs.bucket_names["tide-pgdump"]
+  qdrant_bucket = module.gcs.bucket_names["tide-qdrant"]
+  config_bucket = module.gcs.bucket_names["tide-models"]
+}

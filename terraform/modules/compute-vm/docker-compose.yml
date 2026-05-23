@@ -1,0 +1,75 @@
+# VM-side docker-compose stack for tide-vm (e2-micro, 1 GB RAM + 4 GB swap).
+#
+# Pitfall P1 (MANDATORY): every service has an explicit mem_limit. The sum
+# (450 + 250 + 100 == 800 MB) leaves ~200 MB headroom for the host + sshd; spikes
+# bleed into the 4 GB swapfile (vm.swappiness=10).
+#
+# All ports bind to 127.0.0.1 — Cloud Run reaches the VM over the VPC private IP
+# (the firewall rule `tide-allow-cloudrun-to-vm` opens 5432/6333/6334/6379 from the
+# subnet CIDR only). No public port exposure for the stateful tier.
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg17
+    container_name: tide-db
+    environment:
+      POSTGRES_USER: tide
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: tide
+      TIMESCALEDB_TELEMETRY: 'off'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - /opt/tide/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    secrets:
+      - db_password
+    ports: ["127.0.0.1:5432:5432"]
+    mem_limit: 450m
+    memswap_limit: 1500m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tide -d tide"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: tide-qdrant
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: '6334'
+      QDRANT__SERVICE__HTTP_PORT: '6333'
+      QDRANT__STORAGE__OPTIMIZERS__INDEXING_THRESHOLD: 20000
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    mem_limit: 250m
+    memswap_limit: 1000m
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: tide-redis
+    command:
+      - "redis-server"
+      - "--maxmemory"
+      - "80mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+      - "--save"
+      - ""
+      - "--appendonly"
+      - "no"
+    ports: ["127.0.0.1:6379:6379"]
+    mem_limit: 100m
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  qdrant-data:
+
+secrets:
+  db_password:
+    file: /opt/tide/secrets/db_password

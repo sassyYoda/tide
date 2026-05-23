@@ -1,0 +1,106 @@
+#cloud-config
+# Phase 6 / plan 06-02 — VM first-boot bootstrap for the e2-micro stateful tier.
+#
+# Pitfall P1 (MANDATORY): 4 GB swap file before docker compose up. 1 GB RAM is not
+# enough to host TimescaleDB + Qdrant + Redis simultaneously without swap.
+#
+# Sequence:
+#   1. runcmd creates /swapfile + sets vm.swappiness=10 (persisted to sysctl.d).
+#   2. runcmd pulls docker-compose.yml + postgresql.conf from the GCS config bucket.
+#   3. runcmd fetches the db_password from Secret Manager (tide-db) into a tmpfs file
+#      with mode 0600 — referenced by docker-compose `secrets:` for POSTGRES_PASSWORD_FILE.
+#   4. systemctl enables tide-compose.service which runs `restore-on-first-boot.sh`
+#      and then `docker compose up -d`.
+#
+# Template variables (injected by Terraform `templatefile`):
+#   TIDE_BACKUP_BUCKET, TIDE_QDRANT_BUCKET, TIDE_CONFIG_BUCKET
+
+package_update: true
+package_upgrade: false
+packages:
+  - docker.io
+  - docker-compose-plugin
+  - jq
+
+write_files:
+  - path: /etc/systemd/system/tide-compose.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Tide docker-compose stack (TimescaleDB + Qdrant + Redis)
+      Requires=docker.service
+      After=docker.service network-online.target
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory=/opt/tide
+      ExecStartPre=/opt/tide/restore-on-first-boot.sh
+      ExecStart=/usr/bin/docker compose up -d
+      ExecStop=/usr/bin/docker compose down
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /opt/tide/restore-on-first-boot.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Restore TimescaleDB + Qdrant from GCS snapshots on first boot only.
+      # Idempotent — subsequent boots skip when the docker volume is already populated.
+      set -euo pipefail
+      if [ ! -f /var/lib/docker/volumes/tide_pgdata/_data/PG_VERSION ]; then
+        echo "First boot: attempting TimescaleDB restore from gs://${TIDE_BACKUP_BUCKET}/timescaledb/"
+        latest=$(gsutil ls "gs://${TIDE_BACKUP_BUCKET}/timescaledb/*.sql" 2>/dev/null | sort | tail -1 || true)
+        if [ -n "$latest" ]; then
+          gsutil cp "$latest" /tmp/restore.sql
+          docker compose up -d db
+          # Wait for pg_isready (up to 60s)
+          for i in $(seq 1 30); do
+            if docker compose exec -T db pg_isready -U tide -d tide >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker compose exec -T db pg_restore -U tide -d tide --no-owner --no-acl < /tmp/restore.sql || \
+            docker compose exec -T db psql -U tide -d tide < /tmp/restore.sql
+          rm -f /tmp/restore.sql
+          echo "TimescaleDB restored from $latest"
+        else
+          echo "No pg_dump snapshot in GCS — fresh start; Alembic runs from Cloud Run side"
+        fi
+      fi
+      # Qdrant snapshot — pulled to /tmp; operator runs the collection-scoped upload.
+      if [ ! -d /var/lib/docker/volumes/tide_qdrant-data/_data/collections ]; then
+        latest_q=$(gsutil ls "gs://${TIDE_QDRANT_BUCKET}/qdrant_snapshots/*.snapshot" 2>/dev/null | sort | tail -1 || true)
+        if [ -n "$latest_q" ]; then
+          gsutil cp "$latest_q" /tmp/qdrant_restore.snapshot
+          docker compose up -d qdrant
+          sleep 10
+          echo "Qdrant snapshot available at /tmp/qdrant_restore.snapshot — restore via:"
+          echo "  curl -X POST http://localhost:6333/collections/fishing_reports/snapshots/upload?priority=snapshot --data-binary @/tmp/qdrant_restore.snapshot"
+        fi
+      fi
+
+runcmd:
+  # ===== Pitfall P1 — 4 GB swap (MANDATORY for 1 GB RAM + 3 containers) =====
+  - fallocate -l 4G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - bash -c "echo '/swapfile none swap sw 0 0' >> /etc/fstab"
+  - sysctl vm.swappiness=10
+  - sysctl vm.vfs_cache_pressure=50
+  - bash -c "echo 'vm.swappiness=10' >> /etc/sysctl.d/99-tide.conf"
+  - bash -c "echo 'vm.vfs_cache_pressure=50' >> /etc/sysctl.d/99-tide.conf"
+
+  # ===== Pull docker-compose.yml + postgresql.conf from the config bucket =====
+  - mkdir -p /opt/tide/secrets
+  - gsutil cp gs://${TIDE_CONFIG_BUCKET}/config/docker-compose.yml /opt/tide/docker-compose.yml
+  - gsutil cp gs://${TIDE_CONFIG_BUCKET}/config/postgresql.conf /opt/tide/postgresql.conf
+
+  # ===== Fetch db_password from Secret Manager (VM SA has roles/secretmanager.secretAccessor) =====
+  - bash -c "gcloud secrets versions access latest --secret=tide-db | jq -r .password > /opt/tide/secrets/db_password"
+  - chmod 600 /opt/tide/secrets/db_password
+
+  # ===== Start systemd unit (which calls restore-on-first-boot.sh then docker compose up -d) =====
+  - systemctl enable docker
+  - systemctl start docker
+  - systemctl daemon-reload
+  - systemctl enable --now tide-compose.service
