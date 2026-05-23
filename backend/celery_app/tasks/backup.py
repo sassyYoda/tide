@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from google.cloud import storage
@@ -40,6 +40,59 @@ from celery_app import celery_app
 
 
 logger = logging.getLogger(__name__)
+
+
+# Phase 6 / plan 06-02 — GCS-side retention window for pg_dump snapshots.
+# 7 days mirrors the tide-pgdump bucket lifecycle policy (terraform/modules/gcs).
+# Application-side pruning here is belt-and-suspenders: if the GCS lifecycle
+# rule is mis-applied or disabled, this keeps the bucket inside the 5 GB GCS
+# free tier (Pitfall A5). Mirrors qdrant_snapshot._prune_old_snapshots (local-fs).
+PGDUMP_RETENTION_DAYS = 7
+PGDUMP_GCS_PREFIX = "timescaledb/"
+
+
+def _prune_old_gcs_blobs(bucket_name: str, prefix: str, days: int) -> int:
+    """Delete GCS blobs under gs://<bucket>/<prefix> whose time_created is older than `days`.
+
+    Args:
+        bucket_name: GCS bucket name. Empty string == local-dev posture; no-op
+            without constructing a ``storage.Client`` (avoids surfacing missing
+            GOOGLE_APPLICATION_CREDENTIALS in tests).
+        prefix: object-name prefix to scope the listing (e.g., ``"timescaledb/"``).
+        days: retention window. Blobs older than ``now - days`` are deleted.
+
+    Returns:
+        Count of blobs successfully deleted. Per-blob delete failures are caught
+        and logged so a single transient GCS error does not stop pruning of the
+        remaining stale blobs (best-effort retention).
+
+    Idempotent + safe to call after every successful pg_dump upload.
+    """
+    if not bucket_name:
+        return 0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    deleted = 0
+    for blob in client.list_blobs(bucket, prefix=prefix):
+        if blob.time_created and blob.time_created < cutoff:
+            try:
+                blob.delete()
+                deleted += 1
+                logger.info(
+                    "pg_dump prune: deleted gs://%s/%s (created %s)",
+                    bucket_name,
+                    blob.name,
+                    blob.time_created,
+                )
+            except Exception as exc:  # pragma: no cover — exercised in test
+                logger.warning(
+                    "pg_dump prune: failed to delete gs://%s/%s: %s",
+                    bucket_name,
+                    blob.name,
+                    exc,
+                )
+    return deleted
 
 
 def _dsn_for_pg_dump(sqlalchemy_url: str) -> str:
@@ -106,6 +159,25 @@ def backup_timescaledb_to_gcs(self) -> str:
 
         gs_url = f"gs://{settings.gcs_backup_bucket}/{blob_name}"
         logger.info("backup_timescaledb_to_gcs: uploaded %s", gs_url)
+
+        # Phase 6 — GCS-side 7-day retention (Pitfall A5). Best-effort: a prune
+        # failure must NOT fail the backup itself, otherwise a stuck retention
+        # bug would block fresh snapshots from being recorded.
+        try:
+            pruned = _prune_old_gcs_blobs(
+                settings.gcs_backup_bucket, PGDUMP_GCS_PREFIX, days=PGDUMP_RETENTION_DAYS
+            )
+            if pruned:
+                logger.info(
+                    "backup_timescaledb_to_gcs: pruned %d old blobs (>%d days)",
+                    pruned,
+                    PGDUMP_RETENTION_DAYS,
+                )
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "backup_timescaledb_to_gcs: prune step failed (non-fatal): %s", exc
+            )
+
         return gs_url
     finally:
         # T-01-07-01: never leave the dump file on worker disk.
@@ -116,4 +188,10 @@ def backup_timescaledb_to_gcs(self) -> str:
             logger.warning("failed to unlink %s", dump_path)
 
 
-__all__ = ["backup_timescaledb_to_gcs", "_dsn_for_pg_dump"]
+__all__ = [
+    "backup_timescaledb_to_gcs",
+    "_dsn_for_pg_dump",
+    "_prune_old_gcs_blobs",
+    "PGDUMP_RETENTION_DAYS",
+    "PGDUMP_GCS_PREFIX",
+]

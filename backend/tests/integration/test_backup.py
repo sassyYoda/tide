@@ -95,9 +95,14 @@ def test_uploads_when_bucket_configured(monkeypatch, tmp_path):
     # DSN passed as the last positional with the +psycopg2 suffix stripped
     assert cmd[-1] == "postgresql://tide:tide@localhost:5432/tide"
 
-    # GCS shape
-    fake_client.bucket.assert_called_once_with("test-bucket")
-    blob_name = fake_bucket.blob.call_args.args[0]
+    # GCS shape. Phase 6 / plan 06-02 added a post-upload prune step that calls
+    # ``storage.Client().bucket(...)`` a second time for the retention sweep, so
+    # we no longer assert called_once — the contract is "bucket is the configured
+    # one whenever it IS resolved" (every call uses "test-bucket").
+    assert fake_client.bucket.call_count >= 1
+    for call in fake_client.bucket.call_args_list:
+        assert call.args == ("test-bucket",)
+    blob_name = fake_bucket.blob.call_args_list[0].args[0]
     assert blob_name.startswith("timescaledb/tide_")
     assert blob_name.endswith(".sql") or blob_name.endswith(".sql.gz")
     fake_blob.upload_from_filename.assert_called_once()
