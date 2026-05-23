@@ -262,6 +262,17 @@ def test_phase1_conditions_still_works(test_client):
 
 
 def test_healthz_still_works(test_client):
-    """Regression: Phase 1 /healthz returns 200."""
+    """Regression: /healthz is reachable and returns the L-05 4-field shape.
+
+    Plan 05-02 promoted /healthz to a readiness probe (REL-01) so the
+    status code now reflects degradation (200 ok, 503 degraded). What we
+    assert here is the L-05 contract: the route is wired, returns valid
+    JSON with the four documented keys, and surfaces a documented status
+    value. With no seeded fresh data + no model_loaded flag in this test
+    fixture, 503 with status=='degraded' is the expected response.
+    """
     resp = test_client["client"].get("/healthz")
-    assert resp.status_code == 200
+    assert resp.status_code in (200, 503), resp.text
+    body = resp.json()
+    assert set(body.keys()) == {"ts_lag_seconds", "qdrant_ok", "model_loaded", "status"}
+    assert body["status"] in {"ok", "degraded"}
