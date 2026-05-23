@@ -1,0 +1,10 @@
+project_id          = "tide-mvp"
+region              = "us-east1"
+github_repo         = "X-commando/tide"
+image_tag           = "latest"
+# Secrets — set via TF_VAR_* env vars OR a gitignored staging.tfvars file.
+openai_api_key      = "REPLACE_ME"
+anthropic_api_key   = "REPLACE_ME"
+langfuse_public_key = "REPLACE_ME"
+langfuse_secret_key = "REPLACE_ME"
+db_password         = "REPLACE_ME"
