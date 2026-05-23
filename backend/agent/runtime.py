@@ -116,12 +116,20 @@ async def iter_sse_events(
     query_body: dict[str, Any],
     *,
     request_id: str | None = None,
+    session_id: str | None = None,
 ) -> AsyncIterator[tuple[SSEEventType, "BaseModel"]]:
     """Async-generate ``(event_type, payload)`` tuples for one query.
 
     Caller (FastAPI route in plan 03-05) wraps this in
     ``sse_starlette.EventSourceResponse``. Never raises — exceptions inside
     the graph are caught and converted to a terminal ``error`` event.
+
+    OPS-02 (plan 05-04): ``session_id`` is propagated into the LangGraph
+    invocation as ``config.metadata.langfuse_session_id``. The Langfuse
+    v4 LangChain ``CallbackHandler`` recognises this metadata key and
+    sets ``sessionId`` on the resulting trace, enabling cross-trace
+    correlation in the Langfuse Sessions UI and per-session integration
+    tests.
     """
     rid = request_id or str(uuid4())
     initial_state: TideAgentState = {
@@ -133,11 +141,24 @@ async def iter_sse_events(
 
     compiled = get_compiled_graph()
 
+    # OPS-02: propagate langfuse_session_id (when provided) via the LangGraph
+    # invocation config. The Langfuse v4 LangChain CallbackHandler reads
+    # config.metadata.langfuse_session_id and attaches it as the trace's
+    # sessionId. This is the canonical wiring per Langfuse docs (see
+    # langfuse.com/docs/integrations/langchain/get-started).
+    astream_kwargs: dict[str, Any] = {
+        "stream_mode": ["updates", "custom"],
+        "version": "v2",
+    }
+    if session_id:
+        astream_kwargs["config"] = {
+            "metadata": {"langfuse_session_id": session_id}
+        }
+
     try:
         async for chunk in compiled.astream(
             initial_state,
-            stream_mode=["updates", "custom"],
-            version="v2",
+            **astream_kwargs,
         ):
             chunk_type, data = _normalize_chunk(chunk)
 

@@ -66,10 +66,18 @@ class LocationHint(BaseModel):
 
 
 class QueryBody(BaseModel):
-    """User query body. SEC-06 bound: max_length=500 on the natural-language query."""
+    """User query body. SEC-06 bound: max_length=500 on the natural-language query.
+
+    OPS-02 (plan 05-04): ``session_id`` is optional, server-internal metadata
+    used to correlate multiple traces under one Langfuse session (the trace's
+    ``sessionId`` field). It is NOT echoed back on the SSE wire — only
+    propagated into the LangGraph callback metadata so the resulting Langfuse
+    trace can be looked up by session in integration tests.
+    """
 
     query: str = Field(..., min_length=1, max_length=500)
     location_hint: LocationHint | None = None
+    session_id: str | None = Field(default=None, max_length=200)
 
 
 @router.post("/query")
@@ -127,7 +135,9 @@ async def _event_generator(
     final_time_window: str | None = None
 
     try:
-        async for ev_type, payload in iter_sse_events(body):
+        async for ev_type, payload in iter_sse_events(
+            body, session_id=body.get("session_id")
+        ):
             if await request.is_disconnected():
                 log.info("query: client disconnected mid-stream")
                 break
