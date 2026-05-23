@@ -232,11 +232,39 @@ def run_eval(golden_path: Path = Path("eval/golden_dataset.json")) -> dict[str, 
     ]
     result = evaluate(dataset=dataset, metrics=metrics)
     return {
-        "faithfulness": float(result["faithfulness"]),
-        "answer_relevancy": float(result["answer_relevancy"]),
-        "context_precision": float(result["context_precision"]),
-        "context_recall": float(result["context_recall"]),
+        "faithfulness": _mean_score(result, "faithfulness"),
+        "answer_relevancy": _mean_score(result, "answer_relevancy"),
+        "context_precision": _mean_score(result, "context_precision"),
+        "context_recall": _mean_score(result, "context_recall"),
     }
+
+
+def _mean_score(result: Any, metric: str) -> float:
+    """Coerce Ragas 0.4.3 per-metric output (list of per-sample floats OR scalar) to a mean.
+
+    Ragas 0.4.3 returns ``EvaluationResult`` whose ``__getitem__`` yields a
+    list of per-sample scores (one per ``SingleTurnSample``). NaN entries —
+    Ragas emits these when the evaluator-LLM judge fails or when retrieved
+    contexts are empty — are dropped before averaging so a single noisy row
+    does not poison the aggregate.
+    """
+    import math
+
+    val = result[metric]
+    if isinstance(val, (int, float)):
+        return float(val)
+    scores: list[float] = []
+    for v in val:
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if math.isnan(f):
+            continue
+        scores.append(f)
+    if not scores:
+        return 0.0
+    return sum(scores) / len(scores)
 
 
 # ─── CLI ────────────────────────────────────────────────────────────────

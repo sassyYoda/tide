@@ -1,0 +1,13 @@
+{
+  "computed_at": "2026-05-23T19:18:04.677222Z",
+  "corpus_version": "phase2-296docs-2026-04-27",
+  "evaluator_model": "gpt-4o",
+  "git_sha": "cc6fde97a6c1eaf3fb08111134869fa844d9f63a",
+  "golden_dataset_sha256": "6ef634625adb6db8b2d2a02717470e4b8a4c624e54a132899f81eb5a57d9dd2c",
+  "metrics": {
+    "answer_relevancy": 0.0,
+    "context_precision": 0.0,
+    "context_recall": 0.0,
+    "faithfulness": 0.07315607447472436
+  }
+}
