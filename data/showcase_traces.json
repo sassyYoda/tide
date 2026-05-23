@@ -1,0 +1,30 @@
+[
+  {
+    "description": "Cache hit candidate: second of two identical Sandy Hook striper queries within 15-min TTL window (OQ-2: read-path short-circuit deferred to v1.x; trace shows duplicate-query flow via post-graph cache write)",
+    "pinned_at": "2026-05-23T19:36:08.672248+00:00",
+    "scenario": "cache_hit",
+    "trace_id": "75147a4438b155204c34cd5d92e200b4",
+    "url": "https://us.cloud.langfuse.com/project/cmon6k8aa015mad07jxqayowr/traces/75147a4438b155204c34cd5d92e200b4"
+  },
+  {
+    "description": "Happy path: striper recommendation at Barnegat Inlet (pinned 2026-05-02 from Phase 3)",
+    "pinned_at": "2026-05-02T00:00:00+00:00",
+    "scenario": "happy_path_striper",
+    "trace_id": "cdaa58b7e3d0207b8e15660a404df7c0",
+    "url": "https://us.cloud.langfuse.com/project/cmon6k8aa015mad07jxqayowr/traces/cdaa58b7e3d0207b8e15660a404df7c0"
+  },
+  {
+    "description": "Out-of-scope: 'trout in Colorado' triggers planner non_nj_geo reject and graceful SSE error event",
+    "pinned_at": "2026-05-23T19:33:39.484811+00:00",
+    "scenario": "out_of_scope",
+    "trace_id": "10ea29e31ceb10550cf6f5b0ef6ffd4c",
+    "url": "https://us.cloud.langfuse.com/project/cmon6k8aa015mad07jxqayowr/traces/10ea29e31ceb10550cf6f5b0ef6ffd4c"
+  },
+  {
+    "description": "Partial conditions arrive via partial_conditions SSE event before the final recommendation (Manasquan Inlet fluke query)",
+    "pinned_at": "2026-05-23T19:34:44.074713+00:00",
+    "scenario": "partial_conditions",
+    "trace_id": "c2fdd862bfab4d58fee6c8900bd0d30b",
+    "url": "https://us.cloud.langfuse.com/project/cmon6k8aa015mad07jxqayowr/traces/c2fdd862bfab4d58fee6c8900bd0d30b"
+  }
+]
