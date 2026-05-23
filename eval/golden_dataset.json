@@ -1,0 +1,182 @@
+[
+  {
+    "id": 1,
+    "species": "striper",
+    "query": "Where should I throw bunker chunks for striped bass on the outgoing tide near Barnegat Inlet?",
+    "expected_answer": "On the outgoing (ebb) tide at Barnegat Inlet, position on the down-current side of structure (south jetty, channel edges) and drift fresh bunker chunks on a fishfinder rig so they wash naturally through the rip. Stripers stage on the lee side of current breaks to ambush bait flushing out of the back bay.",
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T00:00:00Z",
+    "reviewer_notes": "Phase 3 Path A hand-grade — bundled per D-02. Underlying showcase Langfuse trace: cdaa58b7e3d0207b8e15660a404df7c0 (happy-path striper recommendation pinned 2026-05-02)."
+  },
+  {
+    "id": 2,
+    "species": "fluke",
+    "query": "What is the best drift speed and bucktail weight for fluke in Manasquan Inlet?",
+    "expected_answer": "Manasquan Inlet typically requires 1.5-2.0 knot drift speeds; in heavier current use a 2-3 oz bucktail jig tipped with a Gulp swimming mullet or strip bait. If drift is too fast, deploy a drift sock; too slow, switch to a lighter 3/4-1 oz bucktail to stay in the strike zone without dragging bottom.",
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T00:00:00Z",
+    "reviewer_notes": "Phase 3 Path A hand-grade — bundled per D-02. Drift + bucktail jargon coverage for the fluke evaluator slice."
+  },
+  {
+    "id": 3,
+    "species": "bluefish",
+    "query": "When chunking bunker for bluefish, what rig and tide stage works best in NJ surf?",
+    "expected_answer": "For bluefish on bunker chunks in NJ surf, use a 50-80 lb wire leader on a fishfinder rig with an 8/0-9/0 circle hook and 4-6 oz pyramid sinker. Best bite typically lands on the incoming tide two hours before to one hour after high, especially at dawn and dusk when bait pods push tight to the beach.",
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T00:00:00Z",
+    "reviewer_notes": "Phase 3 Path A hand-grade — bundled per D-02. Confirms wire-leader requirement (bluefish dental work)."
+  },
+  {
+    "id": 4,
+    "species": "weakfish",
+    "query": "Where in Raritan Bay should I target weakfish in late spring, and what lure or bait?",
+    "expected_answer": "Late-spring weakfish in Raritan Bay concentrate around the Reach Channel and the deeper holes off Keansburg/Cliffwood, especially on the moving tide at dawn or dusk. Cast small bucktails (1/2-3/4 oz) tipped with pink/chartreuse Gulp shrimp, or drift live grass shrimp on a single hook rig over sandy bottoms adjacent to mussel beds.",
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T00:00:00Z",
+    "reviewer_notes": "Phase 3 Path A hand-grade — bundled per D-02. Spring weakfish geo + bait coverage."
+  },
+  {
+    "id": 5,
+    "species": "tautog",
+    "query": "What is the best jig weight and bait for tautog around NJ wrecks in October?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. October tautog typically take green crabs or white legger crabs on a 1.5-3 oz tog jig depending on depth and current.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 6,
+    "species": "tautog",
+    "query": "How do I rig a snafu rig for blackfish on inshore reefs?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. The snafu rig uses two hooks on a short loop tied above a bank sinker so a single crab body holds both hooks.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 7,
+    "species": "tautog",
+    "query": "When is the NJ tautog season closed and what is the bag limit?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. NJ tautog regulations vary by season; consult NJDEP for current open dates and per-angler bag limits.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 8,
+    "species": "tautog",
+    "query": "What depth should I target tautog from a party boat in November?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. November tautog usually move out to 60-90 ft structure as inshore water cools.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 9,
+    "species": "striper",
+    "query": "How do I catch schoolies on the troll along the NJ beachfront in November?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. Schoolies on the troll usually take small mojos or stretches pulled just outside the wash at 3-4 knots.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 10,
+    "species": "striper",
+    "query": "When a bunker pod blows up on the surface, what lure should I cast?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. A bunker pod blow-up typically calls for a weighted treble snag hook or a large soft-plastic bunker imitation cast right past the edge of the pod.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 11,
+    "species": "striper",
+    "query": "What is the best swimming plug color for stripers in stained back-bay water?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. Stained back-bay water generally favors chartreuse or bone-colored swimming plugs with rattles for better target acquisition.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 12,
+    "species": "striper",
+    "query": "How do I work an eel for stripers around bridge pilings at night?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. Live eels worked slowly around bridge pilings at night should be cast up-current and allowed to swing naturally past the shadow line on a slow retrieve.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 13,
+    "species": "fluke",
+    "query": "What technique best targets a doormat fluke in the Mud Hole?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. Doormat-class fluke in the Mud Hole are typically taken on large live baits (mackerel, snapper bluefish) drifted slowly over structure.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 14,
+    "species": "fluke",
+    "query": "How heavy of a bucktail jig should I use on the Shrewsbury Rocks?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. Shrewsbury Rocks usually warrants 3-4 oz bucktail jigs depending on tide stage and wind-against-current conditions.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 15,
+    "species": "fluke",
+    "query": "What is the best teaser color combination for a bucktail-and-teaser fluke rig?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. Bucktail + teaser combos typically pair a white bucktail with a pink or chartreuse teaser tied 12-18 inches above on a dropper loop.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 16,
+    "species": "fluke",
+    "query": "When drifting for fluke, how do I tell when I am dragging too slow vs too fast?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. Ideal fluke drift speed runs 1.0-1.8 knots; below that, switch to a lighter bucktail or troll-motor bump, above that, deploy a drift sock.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 17,
+    "species": "mixed",
+    "query": "If bluefish are crashing bait on top, can I still hook a weakfish underneath?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. When bluefish blitz the surface, weakfish often hang below the chaos; drop a small bucktail or shad to mid-water to target them under the surface action.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 18,
+    "species": "mixed",
+    "query": "What rig handles both bluefish and weakfish bycatch in NJ ocean waters?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. A short wire bite tippet combined with a fluoro main leader can survive bluefish teeth without spooking line-shy weakfish.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 19,
+    "species": "mixed",
+    "query": "How do I separate bluefish strikes from weakfish strikes on a fluke drift?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. Bluefish strikes are sharp and aggressive with frequent line peels; weakfish hits are softer, more of a steady weight than a slam.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  },
+  {
+    "id": 20,
+    "species": "mixed",
+    "query": "When working a popper at dawn, can both bluefish and stripers commit on the same plug?",
+    "expected_answer": "Wave 2 placeholder — hand-review required. Both species will pop the same surface plug at dawn, but bluefish tend to hit harder and require wire or heavy fluoro to avoid bite-offs.",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+  }
+]
