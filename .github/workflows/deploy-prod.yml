@@ -1,0 +1,119 @@
+name: Deploy to production (release tag)
+
+# CI-03 — On release tag push (v*.*.*): smoke-test the staging revision, then
+# promote that revision to 100% production traffic on Cloud Run, then post-deploy
+# health-check the prod URL.
+#
+# AUTH POSTURE (Pitfall P6): Uses Workload Identity Federation via
+# google-github-actions/auth@v2 — keyless OIDC. No long-lived JSON service
+# account credentials anywhere. `id-token: write` is mandatory.
+#
+# PROMOTION MODEL: build-push.yml lands new revisions on Cloud Run with
+# `--tag=staging --no-traffic`. This workflow does the actual traffic flip via
+# `gcloud run services update-traffic --to-tags=staging=100`. After promotion,
+# the staging-tagged revision is also the live prod revision (traffic-routed).
+#
+# ROLLBACK: previous revisions are kept by Cloud Run (default retention).
+# Manual rollback in the Cloud Console: pick previous revision -> "Manage Traffic"
+# -> 100% to that revision. Optionally re-run this workflow with a workflow_dispatch
+# input pointing at an older revision tag.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      revision_tag:
+        description: "Cloud Run revision tag to promote (default: staging)"
+        required: false
+        default: "staging"
+
+permissions:
+  contents: read
+  id-token: write   # MANDATORY for OIDC (Pitfall P6)
+
+concurrency:
+  group: deploy-prod-${{ github.ref }}
+  cancel-in-progress: false   # never cancel a prod promotion mid-flight
+
+jobs:
+  promote:
+    name: Smoke staging, promote to prod, health-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to GCP via Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: tide-github-actions@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resolve revision tag input
+        id: revtag
+        run: |
+          TAG="${{ github.event.inputs.revision_tag }}"
+          if [ -z "$TAG" ]; then TAG="staging"; fi
+          echo "revision_tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Promoting revision tag: $TAG"
+
+      - name: Smoke test staging URL (pre-promotion gate)
+        run: |
+          # Resolve the staging-tagged URL and curl /healthz BEFORE moving traffic.
+          # If this fails, we abort the promotion — prod stays on the previous
+          # revision (default Cloud Run behavior: previous revision still routes
+          # all traffic until update-traffic completes).
+          STAGING_URL=$(gcloud run services describe tide-backend \
+            --region=${{ vars.GCP_REGION }} \
+            --format='value(status.traffic[?(@.tag=="${{ steps.revtag.outputs.revision_tag }}")].url)')
+          if [ -z "$STAGING_URL" ]; then
+            echo "ERROR: could not resolve URL for revision tag '${{ steps.revtag.outputs.revision_tag }}'"
+            gcloud run services describe tide-backend --region=${{ vars.GCP_REGION }} --format='value(status.traffic)'
+            exit 1
+          fi
+          echo "Staging URL: $STAGING_URL"
+          curl --silent --fail --max-time 30 --retry 3 --retry-delay 5 \
+            "${STAGING_URL}/healthz" | grep -q '"status":"ok"'
+          echo "Pre-promotion /healthz: ok"
+
+      - name: Promote revision to 100% production traffic
+        run: |
+          # update-traffic with --to-tags=<tag>=100 routes ALL traffic to the
+          # revision currently wearing that tag. The tag itself stays attached
+          # to the revision (so it doubles as both "staging" inspection URL AND
+          # the live prod revision after this step).
+          gcloud run services update-traffic tide-backend \
+            --region=${{ vars.GCP_REGION }} \
+            --to-tags="${{ steps.revtag.outputs.revision_tag }}=100" \
+            --quiet
+
+      - name: Post-deploy /healthz check on prod URL
+        run: |
+          # Resolve the service's primary (traffic-default) URL and re-check.
+          PROD_URL=$(gcloud run services describe tide-backend \
+            --region=${{ vars.GCP_REGION }} \
+            --format='value(status.url)')
+          if [ -z "$PROD_URL" ]; then
+            echo "ERROR: could not resolve prod URL"
+            exit 1
+          fi
+          echo "Prod URL: $PROD_URL"
+          # Allow time for routing to propagate (rare; usually instant).
+          curl --silent --fail --max-time 30 --retry 5 --retry-delay 5 \
+            "${PROD_URL}/healthz" | grep -q '"status":"ok"'
+          echo "Post-promotion /healthz: ok"
+
+      - name: Record promoted revision (audit trail)
+        run: |
+          REVISION_NAME=$(gcloud run services describe tide-backend \
+            --region=${{ vars.GCP_REGION }} \
+            --format='value(status.traffic[?(@.tag=="${{ steps.revtag.outputs.revision_tag }}")].revisionName)')
+          echo "Promoted revision: $REVISION_NAME"
+          echo "Release tag: ${{ github.ref_name }}"
+          echo "Git SHA: ${{ github.sha }}"

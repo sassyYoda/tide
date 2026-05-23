@@ -1,5 +1,13 @@
 name: Frontend CI
 
+# Phase 6 reminder: the `lighthouse` job below requires the VERCEL_TOKEN repo
+# secret to resolve the Vercel preview URL. Set it via:
+#   gh secret set VERCEL_TOKEN
+# Then push any PR to verify the Lighthouse step runs against the live Vercel
+# preview deployment. Tracked under DOC-03 / CI-04; full activation lands in the
+# 06-07 pre-launch checklist (not in 06-06 — workflows are defined but not run
+# until the user provisions the GitHub repo + GCP project + Vercel secret).
+
 on:
   pull_request:
     paths:
