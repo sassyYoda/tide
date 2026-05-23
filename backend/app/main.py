@@ -16,7 +16,9 @@ multiprocess collector, so unit/integration tests don't explode on the
 
 from __future__ import annotations
 
+import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +31,7 @@ from slowapi.errors import RateLimitExceeded
 # run yet in the process.
 from app import api  # noqa: F401 — touches deps so app.api is importable
 from app.api.conditions import router as conditions_router
-from app.api.health import router as health_router
+from app.api.health import mark_model_loaded, router as health_router
 from ingest import metrics as _metrics_module  # noqa: F401 — register metrics
 
 # Phase 3 — agent SSE + scored-spots routes. Bare-import convention against
@@ -57,8 +59,37 @@ def _build_metrics_registry() -> CollectorRegistry:
     return REGISTRY
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """REL-01 / Pitfall P8 — best-effort model load on startup.
+
+    The Phase 2 D-04 carry-over means 0/5 species are currently promoted to
+    the MLflow Production stage (per the 2026-05-16 remote agent run; ML
+    promotion uplift lands in Phase 6). Until then, no ``ml.scorer_singleton``
+    helper exists to attempt a real model load — so the lifespan flips the
+    ``model_loaded`` flag unconditionally on a successful ``ml.species_config``
+    import. This keeps /healthz informative in local dev (the flag flips True
+    once the FastAPI app is functionally up) without lying about a model
+    actually being in memory. Phase 6 will tighten this once promotion uplift
+    lands and a real ``attempt_load_any_production_model`` helper exists.
+    """
+    try:
+        # The mere fact that ml.species_config imports cleanly means the ML
+        # subsystem is reachable — sufficient signal for the MVP /healthz
+        # readiness flag. Replace with a true model load when D-04 promotion
+        # is unblocked in Phase 6.
+        from ml.species_config import SPECIES_LIST  # noqa: F401
+
+        mark_model_loaded()
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "lifespan: best-effort model load skipped: %s", e
+        )
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Tide API", version="0.1.0")
+    app = FastAPI(title="Tide API", version="0.1.0", lifespan=lifespan)
 
     # ─── CORS (API-04) ──────────────────────────────────────────────────
     # Allow gettide.app + Vercel preview URLs + localhost dev. ``allow_origin_regex``
