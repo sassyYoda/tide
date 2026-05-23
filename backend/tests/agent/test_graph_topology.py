@@ -63,3 +63,48 @@ def test_no_langfuse_handler_when_keys_empty(monkeypatch):
     import agent.graph as gmod
     importlib.reload(gmod)
     assert gmod._maybe_get_langfuse_handler() is None
+
+
+# ─── OPS-01 unit-test extension (Phase 5, plan 05-01) ────────────────────
+#
+# Verifies that ``_maybe_get_langfuse_handler`` returns the Langfuse
+# CallbackHandler when both env keys are configured, and ``None`` when they
+# are unset. Replaces what would otherwise be an end-to-end OPS-01 check
+# against the live Langfuse SaaS — the integration shape is exercised
+# separately in ``tests/agent/test_langfuse_trace_shape.py`` (Wave 3).
+
+
+def test_langfuse_callback_attached_when_keys_set(monkeypatch, caplog):
+    """OPS-01: handler returned when LANGFUSE_*_KEY env keys are set."""
+    import langfuse.langchain as lf_mod
+
+    from agent.graph import _maybe_get_langfuse_handler, reset_for_test
+    from app.config import settings
+
+    reset_for_test()
+    monkeypatch.setattr(settings, "langfuse_secret_key", "test-secret")
+    monkeypatch.setattr(settings, "langfuse_public_key", "test-public")
+
+    sentinel = object()
+    monkeypatch.setattr(lf_mod, "CallbackHandler", lambda: sentinel)
+
+    with caplog.at_level("INFO"):
+        handler = _maybe_get_langfuse_handler()
+    assert handler is sentinel
+    reset_for_test()
+
+
+def test_langfuse_callback_skipped_when_keys_unset(monkeypatch, caplog):
+    """OPS-01: handler is None + skip log emitted when keys are empty."""
+    from agent.graph import _maybe_get_langfuse_handler, reset_for_test
+    from app.config import settings
+
+    reset_for_test()
+    monkeypatch.setattr(settings, "langfuse_secret_key", "")
+    monkeypatch.setattr(settings, "langfuse_public_key", "")
+
+    with caplog.at_level("INFO"):
+        handler = _maybe_get_langfuse_handler()
+    assert handler is None
+    assert "skipping CallbackHandler" in caplog.text
+    reset_for_test()
