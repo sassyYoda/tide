@@ -1,0 +1,103 @@
+name: Ragas Eval
+
+# OPS-05 / OPS-06 — Ragas delta-gate CI workflow.
+#
+# Triggers (L-11 path-gated): only fires on changes that can affect the
+# Ragas score — backend code, eval/ scripts + golden dataset + baseline,
+# or this workflow itself. Frontend-only PRs skip entirely.
+#
+# Concurrency (Pitfall P6): one run per PR / branch; cancel-in-progress
+# drops superseded commits so the GPT-4o evaluator budget is bounded.
+#
+# Compose file is at repo root (./docker-compose.yml). The api service
+# exposes /healthz on host port 8000 once Postgres + Redis + Qdrant +
+# migrator are up.
+#
+# Pitfall P2 enforcement: this workflow READS eval/baseline.json but
+# never rewrites or commits it. Regenerating the baseline is a manual
+# operator action on main (see eval/compute_baseline.py).
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "eval/**"
+      - ".github/workflows/ragas.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "eval/**"
+      - ".github/workflows/ragas.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ragas-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    name: Ragas eval + delta gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv (Python 3.12)
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+
+      - name: Sync backend deps (incl. dev group with ragas==0.4.3)
+        working-directory: backend
+        run: uv sync --group dev
+
+      - name: Bring up docker-compose (db + redis + qdrant + api + worker + beat)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Pass the runner env into the compose containers via a .env file
+          # at the compose root (docker-compose picks it up automatically).
+          {
+            echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+            echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+          } > .env
+          docker compose up -d
+          echo "Compose started; waiting for /healthz..."
+
+      - name: Poll /healthz until ready (max 60s — Assumption A7)
+        run: |
+          for i in $(seq 1 30); do
+            if curl --silent --fail --max-time 2 http://localhost:8000/healthz > /dev/null 2>&1; then
+              echo "Backend ready after $((i * 2))s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend not ready within 60s"
+          curl -sv http://localhost:8000/healthz || true
+          docker compose logs --tail=200 || true
+          exit 1
+
+      - name: Run Ragas eval against live /api/v1/query
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RAGAS_ENDPOINT: http://localhost:8000/api/v1/query
+          QDRANT_URL: http://localhost:6333
+        run: |
+          backend/.venv/bin/python -m eval.ragas_eval --strict --out /tmp/result.json
+          echo "=== Ragas result ==="
+          cat /tmp/result.json
+
+      - name: Compare to baseline (delta gate, threshold 0.05 per L-03)
+        run: |
+          backend/.venv/bin/python eval/compare_to_baseline.py \
+            --baseline eval/baseline.json \
+            --current /tmp/result.json \
+            --threshold 0.05
+
+      - name: Tear down compose
+        if: always()
+        run: docker compose down -v
