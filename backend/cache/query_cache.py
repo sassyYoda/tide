@@ -24,6 +24,8 @@ from typing import Any
 
 from redis.asyncio import Redis
 
+from cache.metrics import query_cache_hits_total, query_cache_misses_total
+
 log = logging.getLogger(__name__)
 
 TTL_SECONDS = 15 * 60
@@ -63,19 +65,30 @@ def query_cache_key(
 
 
 async def get_cached_query(redis: Redis, key: str) -> dict[str, Any] | None:
-    """Read+decode a cached recommendation payload. Returns None on miss / error."""
+    """Read+decode a cached recommendation payload. Returns None on miss / error.
+
+    P-09 instrumentation: increments ``query_cache_hits_total`` on the success
+    branch and ``query_cache_misses_total`` on any of the three miss branches
+    (read fail / raw absent / decode fail). Counters are un-labelled so they
+    aggregate across the whole process (Pitfall P4).
+    """
     try:
         raw = await redis.get(key)
     except Exception as e:  # noqa: BLE001 — best-effort, never fail the request
         log.warning("query_cache: read failed: %s", e)
+        query_cache_misses_total.inc()
         return None
     if not raw:
+        query_cache_misses_total.inc()
         return None
     try:
-        return json.loads(raw)
+        decoded = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
         log.warning("query_cache: cached value malformed at %s", key)
+        query_cache_misses_total.inc()
         return None
+    query_cache_hits_total.inc()
+    return decoded
 
 
 async def put_cached_query(redis: Redis, key: str, payload: dict[str, Any]) -> None:

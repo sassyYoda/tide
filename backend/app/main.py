@@ -32,6 +32,7 @@ from slowapi.errors import RateLimitExceeded
 from app import api  # noqa: F401 — touches deps so app.api is importable
 from app.api.conditions import router as conditions_router
 from app.api.health import mark_model_loaded, router as health_router
+from cache import metrics as _cache_metrics_module  # noqa: F401 — register cache hit/miss counters
 from ingest import metrics as _metrics_module  # noqa: F401 — register metrics
 
 # Phase 3 — agent SSE + scored-spots routes. Bare-import convention against
