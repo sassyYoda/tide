@@ -334,7 +334,15 @@ async def main(
             exclude_urls=exclude_urls,
         )
         if output_override is not None:
-            out_path = output_override
+            # When --output is set across multiple sources, prevent the second
+            # source from overwriting the first by appending a per-source
+            # suffix. Single-source --source runs keep the literal override.
+            if only_source is None and len(thread_paths_by_source) > 1:
+                out_path = output_override.with_name(
+                    f"{output_override.stem}_{src}{output_override.suffix}"
+                )
+            else:
+                out_path = output_override
         else:
             out_path = OUTPUT_DIR / f"{src}_{ts}.jsonl"
         out_path.parent.mkdir(parents=True, exist_ok=True)

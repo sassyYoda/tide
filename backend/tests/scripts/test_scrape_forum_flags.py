@@ -90,3 +90,58 @@ def test_cli_parser_rejects_invalid_since():
     parser = build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["--since", "not-a-date"])
+
+
+def test_multi_source_output_override_appends_source_suffix(tmp_path: Path):
+    """Rule 1 fix: --output across multiple sources must not have source #2
+    overwrite source #1's file. The scraper appends a `_<source>` suffix to
+    the override stem when more than one source is in the manifest and no
+    --source filter is set.
+    """
+    import asyncio
+
+    import respx
+    from httpx import Response
+
+    from scripts.scrape_forum import main as scrape_main
+
+    # Use selectors that match BOTH njfishing (.post-body + .username) AND
+    # stripersonline ([data-role="commentContent"] + h3.ipsType_sectionHead a).
+    sample_html = """
+    <html><body>
+      <div class="post-body" data-role="commentContent">Test report body</div>
+      <time datetime="2024-10-15T18:00:00"></time>
+      <span class="username">tester</span>
+      <h3 class="ipsType_sectionHead"><a>tester_so</a></h3>
+    </body></html>
+    """
+
+    out = tmp_path / "uplift.jsonl"
+    with respx.mock(assert_all_called=False) as router:
+        router.get("https://njfishing.com/robots.txt").mock(
+            return_value=Response(200, text="User-agent: *\nAllow: /")
+        )
+        router.get("https://njfishing.com/t/a").mock(
+            return_value=Response(200, text=sample_html)
+        )
+        router.get("https://www.stripersonline.com/t/b").mock(
+            return_value=Response(200, text=sample_html)
+        )
+
+        asyncio.run(
+            scrape_main(
+                {
+                    "njfishing": ["/t/a"],
+                    "stripersonline": ["/t/b"],
+                },
+                output_override=out,
+            )
+        )
+
+    nj_file = out.with_name("uplift_njfishing.jsonl")
+    so_file = out.with_name("uplift_stripersonline.jsonl")
+    assert nj_file.exists(), "njfishing output file missing — multi-source suffix not applied"
+    assert so_file.exists(), "stripersonline output file missing — multi-source suffix not applied"
+    # Neither should be empty (both sources scraped one thread each)
+    assert nj_file.read_text().strip(), "njfishing output is empty"
+    assert so_file.read_text().strip(), "stripersonline output is empty"
