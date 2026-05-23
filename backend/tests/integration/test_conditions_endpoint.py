@@ -278,12 +278,23 @@ def test_404_unknown_station(test_client):
         assert body["detail"]["code"] == "station_not_found"
 
 
-def test_healthz_200_even_when_db_down(test_client):
-    """/healthz never hits the DB; returns 200 even if session factory errors."""
-    # /healthz has no dependencies; simplest is a plain GET.
+def test_healthz_returns_l05_shape(test_client):
+    """/healthz returns the L-05 4-field readiness shape (REL-01 / plan 05-02).
+
+    Phase 1 stub asserted ``{"status":"ok"}`` always 200. Plan 05-02 promoted
+    /healthz to a readiness probe per the L-05 lock — the body now carries
+    ``ts_lag_seconds`` + ``qdrant_ok`` + ``model_loaded`` + ``status``, and
+    status code maps {200 ok, 503 degraded}. The Cache-Control: no-store
+    header (Pitfall P3) is always present.
+    """
     resp = test_client["client"].get("/healthz")
-    assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    # 200 or 503 depending on freshness / qdrant / model_loaded — both are valid
+    # readiness signals; what we regress here is the contract, not the value.
+    assert resp.status_code in (200, 503), resp.text
+    body = resp.json()
+    assert set(body.keys()) == {"ts_lag_seconds", "qdrant_ok", "model_loaded", "status"}
+    assert body["status"] in {"ok", "degraded"}
+    assert resp.headers.get("Cache-Control") == "no-store"
 
 
 def test_metrics_scrape(test_client):

@@ -32,6 +32,7 @@ celery_app = Celery(
         "celery_app.tasks.solunar",
         "celery_app.tasks.backup",
         "celery_app.tasks.scorer",
+        "celery_app.tasks.qdrant_snapshot",
     ],
 )
 
@@ -41,6 +42,7 @@ _ingest_task_modules = (
     "celery_app.tasks.solunar",
     "celery_app.tasks.backup",
     "celery_app.tasks.scorer",
+    "celery_app.tasks.qdrant_snapshot",
 )
 
 celery_app.conf.update(
@@ -73,6 +75,12 @@ celery_app.conf.update(
         "backup_timescaledb": {
             "task": "celery_app.tasks.backup.backup_timescaledb_to_gcs",
             "schedule": crontab(hour=4, minute=15),  # 04:15 UTC daily
+        },
+        # Phase 5 Plan 02 — REL-04 daily Qdrant snapshot. Fires 15 min BEFORE
+        # the pg_dump backup so the two heavy disk operations stagger.
+        "snapshot_qdrant": {
+            "task": "celery_app.tasks.qdrant_snapshot.snapshot_fishing_reports",
+            "schedule": crontab(hour=4, minute=0),  # 04:00 UTC daily
         },
         # Phase 2 Plan 07 — per-spot × per-species ML scorer (M-11).
         # Cadence aligns with NOAA + feature freshness budget.
