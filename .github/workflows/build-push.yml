@@ -1,0 +1,121 @@
+name: Build and push to Cloud Run staging
+
+# CI-02 — On every merge to main: build + push backend AND worker Docker images
+# to Artifact Registry, deploy backend to Cloud Run staging revision (no traffic),
+# update Cloud Run Jobs to the new worker image, and smoke-test /healthz.
+#
+# AUTH POSTURE (Pitfall P6): Uses Workload Identity Federation via
+# google-github-actions/auth@v2 — keyless OIDC. No long-lived JSON service
+# account credentials anywhere in this workflow or in repo secrets. The
+# `id-token: write` permission + the WIF pool's attribute_condition
+# (= "assertion.repository == 'X-commando/tide'") is the entire auth chain.
+#
+# IMAGE TAGS (Pitfall P7): Every Docker tag is the commit SHA. The mutable
+# rolling-tag pattern is forbidden — tag immutability is the deploy
+# reproducibility guarantee. A mutable tag would let a parallel push silently
+# overwrite the staging revision's image.
+#
+# CLOUD RUN JOBS sync: tide-ingest-noaa / tide-ingest-meteo / tide-compute-solunar
+# all reuse backend/Dockerfile.worker. Updating their `--image=` tag here keeps
+# the ingest workers + the staging backend on the same git SHA.
+#
+# STAGING vs PROD: this workflow deploys with `--tag=staging --no-traffic`. The
+# staging revision gets its own URL but prod traffic is NOT moved. Promotion is
+# the dedicated deploy-prod.yml workflow's job (release tag trigger).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "backend/Dockerfile.api"
+      - "backend/Dockerfile.worker"
+      - ".github/workflows/build-push.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # MANDATORY for OIDC (Pitfall P6 — no JSON SA keys)
+
+concurrency:
+  # One in-flight build-push per ref. Do NOT cancel-in-progress: cancelling
+  # mid-`gcloud run deploy` leaves the service in an inconsistent revision state.
+  group: build-push-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-push-deploy:
+    name: Build, push, deploy to staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to GCP via Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: tide-github-actions@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      # Pitfall P7 — image tag MUST be the commit SHA (no mutable rolling tags).
+      - name: Build + push backend image
+        run: |
+          IMAGE=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/tide/backend:${{ github.sha }}
+          echo "Building backend image: $IMAGE"
+          docker build -t "$IMAGE" -f backend/Dockerfile.api backend/
+          docker push "$IMAGE"
+
+      # Pitfall P7 — image tag MUST be the commit SHA (no mutable rolling tags).
+      - name: Build + push worker image
+        run: |
+          IMAGE=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/tide/worker:${{ github.sha }}
+          echo "Building worker image: $IMAGE"
+          docker build -t "$IMAGE" -f backend/Dockerfile.worker backend/
+          docker push "$IMAGE"
+
+      - name: Deploy backend to Cloud Run staging (no-traffic)
+        run: |
+          # --tag=staging gives this revision a tagged URL (e.g.
+          # https://staging---tide-backend-<hash>-<region>.run.app) without
+          # routing prod traffic. Promotion happens via deploy-prod.yml.
+          gcloud run deploy tide-backend \
+            --region=${{ vars.GCP_REGION }} \
+            --image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/tide/backend:${{ github.sha }} \
+            --tag=staging \
+            --no-traffic \
+            --quiet
+
+      - name: Update Cloud Run Jobs to new worker image (NOAA / Open-Meteo / solunar)
+        run: |
+          # Cloud Run Jobs reuse Dockerfile.worker. Keep job images on the same
+          # git SHA as the staging backend so ingest workers + API stay in sync.
+          for job in tide-ingest-noaa tide-ingest-meteo tide-compute-solunar; do
+            echo "Updating $job to worker:${{ github.sha }}"
+            gcloud run jobs update "$job" \
+              --region=${{ vars.GCP_REGION }} \
+              --image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/tide/worker:${{ github.sha }} \
+              --quiet
+          done
+
+      - name: Smoke test staging /healthz
+        run: |
+          # Resolve the staging-tagged URL and curl /healthz.
+          STAGING_URL=$(gcloud run services describe tide-backend \
+            --region=${{ vars.GCP_REGION }} \
+            --format='value(status.traffic[?(@.tag=="staging")].url)')
+          if [ -z "$STAGING_URL" ]; then
+            echo "ERROR: could not resolve staging URL"
+            exit 1
+          fi
+          echo "Staging URL: $STAGING_URL"
+          # Cloud Run cold start: allow up to 30s.
+          curl --silent --fail --max-time 30 --retry 3 --retry-delay 5 \
+            "${STAGING_URL}/healthz" | grep -q '"status":"ok"'
+          echo "Staging /healthz: ok"
