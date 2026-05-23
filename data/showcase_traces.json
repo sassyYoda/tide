@@ -1,6 +1,6 @@
 [
   {
-    "description": "Cache hit candidate: second of two identical Sandy Hook striper queries within 15-min TTL window (OQ-2: read-path short-circuit deferred to v1.x; trace shows duplicate-query flow via post-graph cache write)",
+    "description": "Cache hit: second of two identical Sandy Hook striper queries within 15-min TTL window. Phase 5 P-09 fix (commit d76ab25) wires the pre-graph read-path short-circuit \u2014 second query replays the cached recommendation event in ~20ms, no LLM calls, no graph run.",
     "pinned_at": "2026-05-23T19:36:08.672248+00:00",
     "scenario": "cache_hit",
     "trace_id": "75147a4438b155204c34cd5d92e200b4",
