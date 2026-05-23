@@ -30,6 +30,13 @@ log = logging.getLogger(__name__)
 
 TTL_SECONDS = 15 * 60
 KEY_PREFIX = "cache:query:"
+# Fast pre-graph key (query-only). Used by the route's read-path short-circuit
+# (Phase 5 follow-up to OQ-2 / D-02.1). Trades cross-species precision for
+# zero-LLM-cost repeat answers within TTL. Cross-species collisions are
+# possible but rare in practice — repeat queries within 15min are typically
+# the same person rephrasing the same intent. v1.x can tighten to a
+# canonical-fields key via a planner-only subgraph.
+KEY_PREFIX_FAST = "cache:query:fast:"
 
 
 def normalize_query(q: str) -> str:
@@ -40,6 +47,20 @@ def normalize_query(q: str) -> str:
         normalize_query("  Stripers   AT Barnegat?  ") == "stripers at barnegat?"
     """
     return " ".join((q or "").lower().split())
+
+
+def fast_query_cache_key(query: str) -> str:
+    """Pre-graph cache key from normalized query alone (Phase 5 P-09 fix).
+
+    Used by ``/api/v1/query`` to check the cache BEFORE running the LangGraph.
+    Trades cross-species precision for zero-LLM-cost repeat answers within
+    TTL. See ``KEY_PREFIX_FAST`` docstring above for the tradeoff rationale.
+
+    Different key prefix (``KEY_PREFIX_FAST``) than the canonical D-02.1 key
+    so the two caches coexist without overwriting each other.
+    """
+    digest = hashlib.sha256(normalize_query(query).encode("utf-8")).hexdigest()[:16]
+    return KEY_PREFIX_FAST + digest
 
 
 def query_cache_key(
@@ -106,7 +127,9 @@ async def put_cached_query(redis: Redis, key: str, payload: dict[str, Any]) -> N
 __all__ = [
     "TTL_SECONDS",
     "KEY_PREFIX",
+    "KEY_PREFIX_FAST",
     "normalize_query",
+    "fast_query_cache_key",
     "query_cache_key",
     "get_cached_query",
     "put_cached_query",

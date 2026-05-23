@@ -10,12 +10,24 @@ on the wire; the frontend treats consecutive ``progress`` events with the
 same stage idempotently. (See the runtime module docstring for the
 rationale.)
 
-Cache (D-02.1, partial): the result cache write keys on
-sha256(normalized_query + canonical_species + spot_id + time_window_label).
-Read path is post-graph only in this round — the pre-graph short-circuit
-needs canonical fields that aren't available until the Planner runs, and
-the planner-only-subgraph rewiring is out of scope here. The cache key
-uses hashlib.sha256 (deterministic across processes); see
+Cache (D-02.1 + Phase 5 P-09 fix):
+
+- POST-graph WRITE keys on the canonical D-02.1 shape: sha256(normalized_query
+  + canonical_species + spot_id + time_window_label) via ``query_cache_key``.
+- PRE-graph READ short-circuit uses a fast query-only key
+  (``fast_query_cache_key``) since canonical fields aren't available before
+  the Planner runs. Trade-off: cross-species collisions are possible but rare
+  in practice — repeat queries within 15min are typically the same person
+  rephrasing the same intent. v1.x can tighten to a planner-only subgraph
+  for full canonical-field precision if cross-species false hits surface.
+- On cache hit: emit ``progress(planner)`` + ``progress(synthesizer)`` + the
+  cached ``recommendation`` event. partial_conditions is NOT replayed (live
+  conditions data; staler than 15min would be misleading). The frontend
+  reducer handles the abbreviated event sequence transparently.
+- POST-graph also writes to the fast key (in addition to the canonical key)
+  so the read-path short-circuit fires on subsequent identical queries.
+
+The cache key uses hashlib.sha256 (deterministic across processes); see
 backend/cache/query_cache.py for the rationale on never using the
 built-in non-deterministic hashing primitive.
 
@@ -48,6 +60,8 @@ from agent.sse_protocol import (
 from api.middleware.rate_limit import limiter
 from app.deps.redis import get_redis
 from cache.query_cache import (
+    fast_query_cache_key,
+    get_cached_query,
     put_cached_query,
     query_cache_key,
 )
@@ -129,6 +143,29 @@ async def _event_generator(
         "data": make_progress_payload("planner").model_dump_json(),
     }
 
+    # Phase 5 P-09 fix: pre-graph cache check (read-path short-circuit).
+    # If a recent identical query is cached, replay the recommendation event
+    # and skip the full LangGraph run entirely. Cross-species collisions
+    # documented in module docstring; v1.x can tighten via planner-only
+    # subgraph. partial_conditions intentionally NOT replayed — those carry
+    # live conditions data that shouldn't be served staler than freshly fetched.
+    fast_key = fast_query_cache_key(body.get("query", ""))
+    cached = await get_cached_query(redis, fast_key)
+    if cached is not None and cached.get("event") == "recommendation":
+        # Emit a tight progress(synthesizer) so the frontend reducer transitions
+        # through streaming(synthesizer) before the final recommendation arrives.
+        yield {
+            "event": "progress",
+            "data": make_progress_payload("synthesizer").model_dump_json(),
+        }
+        # Replay the cached recommendation payload verbatim.
+        import json as _json
+        yield {
+            "event": "recommendation",
+            "data": _json.dumps(cached["payload"]),
+        }
+        return
+
     final_payload: RecommendationPayload | None = None
     final_spot_id: int | None = None
     final_species: str | None = None
@@ -175,20 +212,21 @@ async def _event_generator(
     # primitive is unsafe here — PYTHONHASHSEED is randomized across processes).
     if final_payload is not None:
         try:
+            cached_value = {
+                "event": "recommendation",
+                "payload": final_payload.model_dump(mode="json"),
+            }
             refined_key = query_cache_key(
                 body.get("query", ""),
                 final_species,
                 final_spot_id,
                 final_time_window,
             )
-            await put_cached_query(
-                redis,
-                refined_key,
-                {
-                    "event": "recommendation",
-                    "payload": final_payload.model_dump(mode="json"),
-                },
-            )
+            await put_cached_query(redis, refined_key, cached_value)
+            # Phase 5 P-09 fix: also write to the fast (query-only) key so
+            # subsequent identical queries hit the pre-graph short-circuit
+            # above. Same TTL (15min) and same payload.
+            await put_cached_query(redis, fast_key, cached_value)
         except Exception as e:  # noqa: BLE001
             log.warning("query: cache write failed (non-fatal): %s", e)
 

@@ -23,11 +23,11 @@ pytestmark = pytest.mark.integration
 def test_cache_counter_visible_at_metrics(test_client):
     """GET /metrics body contains both cache counter names + their HELP lines.
 
-    Per OQ-2 resolution (RESEARCH §Q5): the read-path short-circuit into the
-    query route lands in v1.x, so in Phase 5 traffic the counters may sit
-    at 0.0 — what matters here is that the Counter objects are REGISTERED
-    on the default REGISTRY (which is what the force-import in main.py
-    guarantees).
+    OQ-2 was resolved in-Phase-5 by ``backend/api/v1/query.py`` wiring the
+    pre-graph read-path short-circuit (calls ``get_cached_query`` against a
+    fast query-only cache key). The counters now move under real traffic;
+    this test only asserts registration so it stays green even on a cold
+    Redis.
     """
     resp = test_client["client"].get("/metrics")
     assert resp.status_code == 200, resp.text
