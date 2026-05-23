@@ -19,6 +19,14 @@ resource "google_service_account" "github_actions" {
   display_name = "Tide GitHub Actions deployer"
 }
 
+# Plan 06-04 — Cloud Scheduler SA. Granted roles/run.invoker per-job in the
+# cloud-run module (modules/cloud-run/scheduler.tf), so no project-level
+# binding is needed here (least privilege per L-11).
+resource "google_service_account" "scheduler" {
+  account_id   = "tide-scheduler"
+  display_name = "Tide Cloud Scheduler invoker"
+}
+
 # WIF pool + provider (Pitfall P6 — no JSON SA keys ever).
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github-actions"
