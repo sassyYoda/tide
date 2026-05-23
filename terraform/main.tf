@@ -91,3 +91,21 @@ module "compute_vm" {
   qdrant_bucket = module.gcs.bucket_names["tide-qdrant"]
   config_bucket = module.gcs.bucket_names["tide-models"]
 }
+
+# Wave 2 — plan 06-03 declared the backend Cloud Run service; plan 06-04 adds
+# the 3 ingest Jobs + Cloud Scheduler triggers (NOAA */15, Open-Meteo */30,
+# solunar 0 * * * *). Both live in the same `cloud-run` module so they share
+# variables.tf and the worker/backend image-tag input.
+module "cloud_run" {
+  source             = "./modules/cloud-run"
+  project_id         = var.project_id
+  region             = var.region
+  vpc_id             = module.network.vpc_id
+  subnet_id          = module.network.subnet_id
+  backend_sa_email   = module.iam.cloudrun_backend_sa_email
+  ingest_sa_email    = module.iam.cloudrun_ingest_sa_email
+  scheduler_sa_email = module.iam.scheduler_sa_email
+  image_tag          = var.image_tag
+  secret_ids         = module.secret_manager.secret_ids
+  vm_internal_ip     = module.compute_vm.vm_internal_ip
+}

@@ -23,3 +23,9 @@ output "wif_provider_name" {
 output "wif_pool_name" {
   value = google_iam_workload_identity_pool.github.name
 }
+
+# Plan 06-04 — Cloud Scheduler SA email; consumed by modules/cloud-run/scheduler.tf
+# as the oauth_token.service_account_email for the 3 cron triggers.
+output "scheduler_sa_email" {
+  value = google_service_account.scheduler.email
+}
