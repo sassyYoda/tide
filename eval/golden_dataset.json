@@ -6,7 +6,12 @@
     "expected_answer": "On the outgoing (ebb) tide at Barnegat Inlet, position on the down-current side of structure (south jetty, channel edges) and drift fresh bunker chunks on a fishfinder rig so they wash naturally through the rip. Stripers stage on the lee side of current breaks to ambush bait flushing out of the back bay.",
     "reviewed_by": "X-commando",
     "reviewed_at": "2026-05-23T00:00:00Z",
-    "reviewer_notes": "Phase 3 Path A hand-grade — bundled per D-02. Underlying showcase Langfuse trace: cdaa58b7e3d0207b8e15660a404df7c0 (happy-path striper recommendation pinned 2026-05-02)."
+    "reviewer_notes": "Phase 3 Path A hand-grade \u2014 bundled per D-02. Underlying showcase Langfuse trace: cdaa58b7e3d0207b8e15660a404df7c0 (happy-path striper recommendation pinned 2026-05-02).",
+    "query_type": "happy_path",
+    "expected_citations": [
+      "NJ Fishing Barnegat reports",
+      "StripersOnline inlet threads"
+    ]
   },
   {
     "id": 2,
@@ -15,7 +20,12 @@
     "expected_answer": "Manasquan Inlet typically requires 1.5-2.0 knot drift speeds; in heavier current use a 2-3 oz bucktail jig tipped with a Gulp swimming mullet or strip bait. If drift is too fast, deploy a drift sock; too slow, switch to a lighter 3/4-1 oz bucktail to stay in the strike zone without dragging bottom.",
     "reviewed_by": "X-commando",
     "reviewed_at": "2026-05-23T00:00:00Z",
-    "reviewer_notes": "Phase 3 Path A hand-grade — bundled per D-02. Drift + bucktail jargon coverage for the fluke evaluator slice."
+    "reviewer_notes": "Phase 3 Path A hand-grade \u2014 bundled per D-02. Drift + bucktail jargon coverage for the fluke evaluator slice.",
+    "query_type": "jargon_heavy",
+    "expected_citations": [
+      "NJ Fishing fluke threads",
+      "StripersOnline Manasquan reports"
+    ]
   },
   {
     "id": 3,
@@ -24,7 +34,12 @@
     "expected_answer": "For bluefish on bunker chunks in NJ surf, use a 50-80 lb wire leader on a fishfinder rig with an 8/0-9/0 circle hook and 4-6 oz pyramid sinker. Best bite typically lands on the incoming tide two hours before to one hour after high, especially at dawn and dusk when bait pods push tight to the beach.",
     "reviewed_by": "X-commando",
     "reviewed_at": "2026-05-23T00:00:00Z",
-    "reviewer_notes": "Phase 3 Path A hand-grade — bundled per D-02. Confirms wire-leader requirement (bluefish dental work)."
+    "reviewer_notes": "Phase 3 Path A hand-grade \u2014 bundled per D-02. Confirms wire-leader requirement (bluefish dental work).",
+    "query_type": "happy_path",
+    "expected_citations": [
+      "NJ Fishing surf threads",
+      "StripersOnline bluefish reports"
+    ]
   },
   {
     "id": 4,
@@ -33,150 +48,238 @@
     "expected_answer": "Late-spring weakfish in Raritan Bay concentrate around the Reach Channel and the deeper holes off Keansburg/Cliffwood, especially on the moving tide at dawn or dusk. Cast small bucktails (1/2-3/4 oz) tipped with pink/chartreuse Gulp shrimp, or drift live grass shrimp on a single hook rig over sandy bottoms adjacent to mussel beds.",
     "reviewed_by": "X-commando",
     "reviewed_at": "2026-05-23T00:00:00Z",
-    "reviewer_notes": "Phase 3 Path A hand-grade — bundled per D-02. Spring weakfish geo + bait coverage."
+    "reviewer_notes": "Phase 3 Path A hand-grade \u2014 bundled per D-02. Spring weakfish geo + bait coverage.",
+    "query_type": "happy_path",
+    "expected_citations": [
+      "NJ Fishing Raritan threads",
+      "StripersOnline weakfish reports"
+    ]
   },
   {
     "id": 5,
     "species": "tautog",
-    "query": "What is the best jig weight and bait for tautog around NJ wrecks in October?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. October tautog typically take green crabs or white legger crabs on a 1.5-3 oz tog jig depending on depth and current.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "jargon_heavy",
+    "query": "Green crabs or whities for togging the Axel Carlson Reef in late October \u2014 and what jig weight on a slack tide?",
+    "expected_answer": "Aggregate the corpus for tog reports at/near Axel Carlson Reef in the last 14-30 days, broken down by bait type. Cite specific catch counts + sizes per bait if available. Cross-reference live conditions at the nearest tog-relevant station (Sandy Hook or Atlantic City): water temp (critical \u2014 best 50-58\u00b0F), tide stage at user's intended fishing time, wind. Suggest jig weight based on current/forecast tide phase: 'Slack tide last reported today at 14:32; 1-1.5 oz on slack, 2-3 oz once the current builds.' Faithfulness rule: must cite specific bait performance from corpus reports OR honest F-16 if no Axel Carlson reports in window. NOT generic 'whities for keepers, greens for bait economy'.",
+    "expected_citations": [
+      "njfishing.com forum thread",
+      "stripersonline NJ Saltwater Fishing"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; jargon-heavy specific-location question. Data-driven: must cite report counts per bait + live conditions, NOT general knowledge."
   },
   {
     "id": 6,
     "species": "tautog",
-    "query": "How do I rig a snafu rig for blackfish on inshore reefs?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. The snafu rig uses two hooks on a short loop tied above a bank sinker so a single crab body holds both hooks.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "definition",
+    "query": "What's the snafu rig?",
+    "expected_answer": "Three-part answer. (1) NJ-context definition: A snafu rig is a tog rig with a single short dropper loop tied above a small inline egg sinker (vs the traditional Virginia/two-hook bottom rig). The single hook sits 4-6 inches off bottom on a short stiff leader, baited with green crab or white-legger crab halves. Popular for NJ tog because it telegraphs the soft 'tog tap' bite cleanly and gets fewer hangups in the rocks/wrecks vs a two-hook rig. (2) When it shines: light-to-moderate current over inshore wrecks/jetty rocks; deeper holes with sticky structure where a two-hook rig snags constantly. (3) Recent corpus evidence: aggregate tog reports from last 14-30d that mention snafu/single-hook rigs vs jigs vs Virginia rigs. Emit: 'Last 14d: 4 tog reports specifically called out snafu/single-hook setups (3 keepers at Manasquan rocks, 1 keeper at Belmar jetty), 7 reports used tog jigs, 2 used two-hook bait rigs.' Faithfulness rule: must include both the NJ-shore-context definition AND corpus-grounded usage examples (or F-16 if no snafu mentions in corpus).",
+    "expected_citations": [
+      "NJ Fishing tog rigging threads",
+      "StripersOnline tog rig discussions",
+      "corpus snafu-rig mentions"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; definitional query. Pattern: define in NJ-shore context + cite recent corpus evidence of usage. Tests system's ability to combine educational framing with measured analysis, NOT generic gear-blog answer."
   },
   {
     "id": 7,
     "species": "tautog",
-    "query": "When is the NJ tautog season closed and what is the bag limit?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. NJ tautog regulations vary by season; consult NJDEP for current open dates and per-angler bag limits.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "out_of_scope",
+    "query": "What are the current NJ tautog season dates and bag limits I need to follow this fall?",
+    "expected_answer": "I can't give you live regulatory dates or bag limits \u2014 those are set by NJDEP and change year to year. For current open dates, size limits, and per-angler bag limits, check the NJ Division of Fish & Wildlife marine regulations page or call NJDEP. I can help with where, when (tide/weather), and how to fish for tog once you've confirmed the season is open.",
+    "expected_citations": [],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; awaiting human review. Out-of-scope guardrail test \u2014 agent should refuse regulatory advice."
   },
   {
     "id": 8,
     "species": "tautog",
-    "query": "What depth should I target tautog from a party boat in November?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. November tautog usually move out to 60-90 ft structure as inshore water cools.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "casual",
+    "query": "Is tog season any good right now?",
+    "expected_answer": "Two-part answer: (1) seasonal context \u2014 tog in NJ peaks Oct-Dec; check today's date and answer 'in season / pre-season / off-season'. (2) If in-season, cite live conditions from nearest tog-relevant station (Sandy Hook, Atlantic City, or Cape May depending on user proximity) \u2014 water temp matters most (best 50-60\u00b0F). Plus last 14d tog reports from corpus. Faithfulness rule: must cite actual season-start date + \u22651 fresh report OR honest F-16 if corpus has nothing recent. NOT a generic 'tog peaks fall' answer.",
+    "expected_citations": [
+      "NJ DEP tautog season reference",
+      "NJ Fishing tog reports",
+      "StripersOnline tog threads"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; casual seasonal question. Expected answer must cite live water temp + fresh reports, NOT just calendar rules."
   },
   {
     "id": 9,
     "species": "striper",
-    "query": "How do I catch schoolies on the troll along the NJ beachfront in November?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. Schoolies on the troll usually take small mojos or stretches pulled just outside the wash at 3-4 knots.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "casual",
+    "query": "Where can I catch striped bass near Asbury Park?",
+    "expected_answer": "Filter corpus reports for striper catches within ~10 miles of Asbury Park (Sea Girt to Long Branch corridor) in the last 14 days. Cite specific spots + catch details. Cross-reference live conditions at nearest station (Sandy Hook 8531680 or Belmar buoy). Emit: 'Last 14d striper reports in Asbury Park area: 3 hits at Asbury jetty (NJF: 5/22 - 28in on bunker chunk, SO: 5/19 - 32in on Mag Darter, NJF: 5/15 - 26in), 2 at Shark River Inlet south jetty (SO: 5/21 - schoolie blitz at incoming top, ...), 1 at Belmar beach. Current Sandy Hook: water 58\u00b0F, tide incoming. Best given recent activity: Asbury jetty on incoming tide.' Faithfulness rule: must cite specific reports + dates + catch detail OR F-16 if no Asbury-area reports in window.",
+    "expected_citations": [
+      "NJ Fishing",
+      "StripersOnline"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; casual location question. Data-driven: cites area-filtered report counts + spot-level detail + live conditions."
   },
   {
     "id": 10,
     "species": "striper",
-    "query": "When a bunker pod blows up on the surface, what lure should I cast?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. A bunker pod blow-up typically calls for a weighted treble snag hook or a large soft-plastic bunker imitation cast right past the edge of the pod.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "casual",
+    "query": "Is it a good morning to fish for stripers?",
+    "expected_answer": "Pull current NOAA station readings (default: Sandy Hook 8531680) and emit a verdict tied to live values. Example shape: 'At Sandy Hook now \u2014 tide incoming (peak in 1h 20m), wind 6 mph SW, water temp 58\u00b0F. Last 7 days: 2 striper reports from Sea Bright + 1 from Sandy Hook. Verdict: favorable morning, especially the first hour after sunrise overlapping the high. Suggested tactic from recent reports: bunker chunks or topwater on the slack-to-outgoing. Citations: [NJF:<date>, SO:<date>]. Confidence: Moderate (ML model in calibration; rules-based score = 0.71).' Faithfulness rule: answer MUST cite ts_lag_seconds < 1800 station data + at least 1 fresh citation OR fall back to F-16 honest empty.",
+    "expected_citations": [
+      "NOAA Sandy Hook 8531680",
+      "NJ Fishing recent striper threads",
+      "StripersOnline north-shore reports"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; casual go/no-go question. Expected answer describes SYSTEM behavior (live data + RAG citations + ML/rules score), not human rules-of-thumb."
   },
   {
     "id": 11,
     "species": "striper",
-    "query": "What is the best swimming plug color for stripers in stained back-bay water?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. Stained back-bay water generally favors chartreuse or bone-colored swimming plugs with rattles for better target acquisition.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "happy_path",
+    "query": "Is the Sandy Hook rip producing topwater this week at first light?",
+    "expected_answer": "Pull Sandy Hook station (8531680) tide schedule for tomorrow's sunrise window. Aggregate corpus reports from Sandy Hook rip / north-shore area in the last 7d filtered by 'topwater', 'plug', 'first light', or sunrise-window catches. Emit: 'Sunrise tomorrow 5:42; high tide 4:08, outgoing through 10:22 \u2014 first-of-outgoing overlaps sunrise. Last 7d: 3 first-light topwater hits reported on the rip (NJF: 5/22 Sea Bright north side - 28in on a Mag Darter; SO: 5/21 Sandy Hook tip - 32in on a Bomber Long A; ...).' Faithfulness rule: must cite specific report+date+catch detail OR F-16 if no rip topwater reports in window.",
+    "expected_citations": [
+      "NJ Fishing Sandy Hook reports",
+      "StripersOnline north-shore plug threads",
+      "NOAA Sandy Hook 8531680"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; REVISED from generic 'what plug?' to a data-aggregation question over the rip-specific recent corpus."
   },
   {
     "id": 12,
     "species": "striper",
-    "query": "How do I work an eel for stripers around bridge pilings at night?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. Live eels worked slowly around bridge pilings at night should be cast up-current and allowed to swing naturally past the shadow line on a slow retrieve.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "casual",
+    "query": "What time should I head out tomorrow for stripers?",
+    "expected_answer": "Pull tomorrow's tide schedule + sunrise time for the user's nearest station (Sandy Hook default). Emit specific times: 'Sunrise tomorrow 5:42 AM at Sandy Hook. High tide 4:08 AM, outgoing through 10:22 AM. Best window: 5:00-7:00 AM (overlapping first hour of light with early outgoing). Solunar major: 4:51 AM (small edge).' Plus 1-2 sentence rationale tied to recent striper-bite report patterns from corpus. Faithfulness rule: must cite real tomorrow-dated tide + sunrise values from NOAA + Open-Meteo. NOT generic 'dawn or dusk on a tide change'.",
+    "expected_citations": [
+      "NOAA tide predictions",
+      "Open-Meteo sunrise data",
+      "solunar calc"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; casual planning question. Expected answer cites tomorrow's actual tide + sunrise values, NOT abstract advice."
   },
   {
     "id": 13,
     "species": "fluke",
-    "query": "What technique best targets a doormat fluke in the Mud Hole?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. Doormat-class fluke in the Mud Hole are typically taken on large live baits (mackerel, snapper bluefish) drifted slowly over structure.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "jargon_heavy",
+    "query": "Doormat hunting on the Mud Hole \u2014 live bait or jumbo Gulp on a heavy bucktail?",
+    "expected_answer": "Aggregate corpus reports from the Mud Hole (offshore canyon edge ~30-50nm out) in the last 30 days, filtered for 8+ lb fluke catches. Break down by bait/lure: live vs Gulp on bucktail. Cite specific catches with weight + bait. Cross-reference today's wind forecast (Open-Meteo) \u2014 anything > 15 mph SW likely scratches the Mud Hole trip; report on whether conditions support the run. Emit: 'Last 30d: 4 doormat-class fluke (8+ lb) reported from Mud Hole \u2014 3 on live snapper bluefish/mackerel, 1 on Gulp jumbo grub. Today's wind: 18 mph WSW (above the safe-window threshold for that run).' Faithfulness rule: must cite catch reports + today's actual wind forecast. F-16 if no Mud Hole reports in 30d window.",
+    "expected_citations": [
+      "Mud Hole party-boat report",
+      "stripersonline fluke jumbo thread"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; jargon-heavy offshore question. Data-driven: cites real catch counts + live wind forecast for trip feasibility."
   },
   {
     "id": 14,
     "species": "fluke",
-    "query": "How heavy of a bucktail jig should I use on the Shrewsbury Rocks?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. Shrewsbury Rocks usually warrants 3-4 oz bucktail jigs depending on tide stage and wind-against-current conditions.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "casual",
+    "query": "I'm new to fluke fishing \u2014 where are conditions friendliest right now for a beginner?",
+    "expected_answer": "Filter corpus for fluke spots that are (a) sheltered/back-bay (lower wave + drift risk), (b) shallow (easier to manage rigs), (c) productive in the current week per recent reports. Cross-reference live conditions across the 9 NOAA stations to find the calmest current option. Emit: 'Best beginner spots given current conditions (wind 12 mph east at most coastal stations; calmest at Sandy Hook back-bay reading 4 mph): Raritan Bay near Keansburg (5 fluke reports last 7d, all under 18ft depth) and Barnegat Bay near IBSP back-bay (3 reports). Avoid ocean-side today \u2014 wind kicking up.' Faithfulness rule: must cite specific stations + report counts + actual wind readings. F-16 if no back-bay fluke reports recent.",
+    "expected_citations": [
+      "NJ Fishing back-bay fluke threads",
+      "NOAA Sandy Hook + Atlantic City stations"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; REVISED beginner question. Now tests live-conditions filtering for skill-level-appropriate spots, NOT generic 'start in Raritan'."
   },
   {
     "id": 15,
     "species": "fluke",
-    "query": "What is the best teaser color combination for a bucktail-and-teaser fluke rig?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. Bucktail + teaser combos typically pair a white bucktail with a pink or chartreuse teaser tied 12-18 inches above on a dropper loop.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "happy_path",
+    "query": "What drift speed should I run in Raritan Bay tomorrow given the wind forecast?",
+    "expected_answer": "Pull tomorrow's wind forecast (Open-Meteo) for Sandy Hook 8531680 + Raritan Bay subregion. Pull tide schedule. Compute likely drift: 'Tomorrow's wind: 10 mph NE through 11am, dropping to 6 mph by 2pm. Outgoing tide 6:14am-12:38pm. Expected drift over the channel edges: 1.2-1.6 knots morning (workable), dropping to 0.6-0.9 knots afternoon (slow \u2014 add a drift sock or sweeten with a longer leader).' Cross-reference last 7d fluke reports from Raritan with drift-speed annotations if any. Faithfulness rule: must cite actual forecast values + tide times, not generic '1 knot ideal'.",
+    "expected_citations": [
+      "Open-Meteo Raritan forecast",
+      "NOAA Sandy Hook tide schedule",
+      "NJ Fishing Raritan reports"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; REVISED to specific tomorrow-forecast question. Tests wind + tide aggregation, not general '1 knot is best' advice."
   },
   {
     "id": 16,
     "species": "fluke",
-    "query": "When drifting for fluke, how do I tell when I am dragging too slow vs too fast?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. Ideal fluke drift speed runs 1.0-1.8 knots; below that, switch to a lighter bucktail or troll-motor bump, above that, deploy a drift sock.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "casual",
+    "query": "When's the best month for fluke?",
+    "expected_answer": "Aggregate corpus reports by month across all years to compute fluke catch density per month for NJ saltwater. Emit: 'Corpus historical fluke reports by month \u2014 May: 14, June: 41, July: 38, August: 22, September: 19, October: 7. Peak month: June (1.2x July activity, 2.0x August). May has lowest variance \u2014 most reliable opener fishing. Current month context: today is May 23, the season is open and ramping; June expected within the next 2-3 weeks based on water-temp trend at Sandy Hook (currently 58\u00b0F, fluke prefer 60-68\u00b0F).' Faithfulness rule: must cite actual per-month counts from corpus + current temp reading, NOT generic 'mid-June through early August'.",
+    "expected_citations": [
+      "Corpus monthly aggregation",
+      "NOAA Sandy Hook water temp trend",
+      "NJ Fishing seasonal threads"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; casual seasonal question. Data-driven: cites historical per-month report counts from corpus + current water-temp trajectory, NOT calendar rules-of-thumb."
   },
   {
     "id": 17,
     "species": "mixed",
-    "query": "If bluefish are crashing bait on top, can I still hook a weakfish underneath?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. When bluefish blitz the surface, weakfish often hang below the chaos; drop a small bucktail or shad to mid-water to target them under the surface action.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "casual",
+    "query": "I'm visiting NJ this weekend \u2014 what should I try fishing for?",
+    "expected_answer": "Compute 'this weekend' relative to today's date. Pull Saturday + Sunday wind/temp/tide forecasts (Open-Meteo + NOAA) across the 9 stations. Aggregate corpus reports from the last 14d filtered by species. Emit: 'This weekend (Sat 5/24 - Sun 5/25): Saturday best for surfcasting \u2014 wind 6 mph SW, dropping; high tide overlaps sunrise at Sandy Hook (5:42am). Sunday windier (15 mph). Current best species: striper (10 reports last 14d, peak migration), fluke (5 reports, season open). Top spots given Saturday conditions: Sandy Hook hook + Asbury Park beach. Book a party boat out of Belmar if you don't have surf gear (Sea Hunter, Big Mohawk run mornings).' Faithfulness rule: must cite actual weekend dates + forecast values + report counts.",
+    "expected_citations": [
+      "Open-Meteo weekend forecast",
+      "NOAA tide predictions",
+      "NJ Fishing weekend recap threads"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; casual visitor question. Data-driven: cites actual weekend forecast + recent report counts, NOT generic 'try striper or fluke'."
   },
   {
     "id": 18,
     "species": "mixed",
-    "query": "What rig handles both bluefish and weakfish bycatch in NJ ocean waters?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. A short wire bite tippet combined with a fluoro main leader can survive bluefish teeth without spooking line-shy weakfish.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "jargon_heavy",
+    "query": "Bunker schools off Sea Bright are getting hammered \u2014 any blues marauding underneath, or just bass?",
+    "expected_answer": "Aggregate corpus reports from Sea Bright / north-shore area in the last 3-7 days for both bluefish AND striper catches that mention bunker presence. Cross-reference live water temp at Sandy Hook 8531680 (bunker move in once temps hit ~58\u00b0F+). Emit: 'Sandy Hook reading 60\u00b0F now (in bunker-presence range). Last 5 days: 4 bluefish reports under bunker pods off Sea Bright (12-18 inch chopper class, snag-and-drop and topwater), 6 striper reports under same bait (28-36 inch class, live-lined bunker and pencil poppers). Expect mixed bag \u2014 both species working the bait. Faithfulness rule: must cite specific reports + actual water temp reading; F-16 if no bunker-mention reports in window.",
+    "expected_citations": [
+      "Sea Bright bunker report",
+      "stripersonline mixed-species blitz thread"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; jargon-heavy mixed-species question. Data-driven: cites water temp + species-specific report counts under bait, not 'blues usually follow bunker'."
   },
   {
     "id": 19,
-    "species": "mixed",
-    "query": "How do I separate bluefish strikes from weakfish strikes on a fluke drift?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. Bluefish strikes are sharp and aggressive with frequent line peels; weakfish hits are softer, more of a steady weight than a slam.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "species": "fluke",
+    "query_type": "definition",
+    "query": "What's a doormat fluke?",
+    "expected_answer": "Three-part answer. (1) NJ-context definition: 'Doormat' is the NJ saltwater slang for a trophy-class fluke \u2014 generally 8 lb and up, often 10-12+ lb. The term comes from the fish being literally wider than a household doormat at that size. NJ state record is ~24 lb. Doormats are dominant females; most fluke 5 lb and under are males. (2) Where they live: rarely the back bays \u2014 doormats typically hold on offshore structure (Mud Hole 30-50nm out, Atlantic City Reef, Cape May reef, ocean wrecks 60-150 ft) where bigger forage exists. Live bait (snapper bluefish, mackerel, large sand eel) or jumbo Gulp on heavy bucktails outproduce squid + spearing here. (3) Recent corpus evidence: aggregate fluke reports from last 30-60d for catches >= 8 lb. Emit: 'Last 30d: 3 doormat-class fluke (8+ lb) reported across NJ \u2014 10.4 lb at Mud Hole on live snapper bluefish (SO: 5/18), 9.1 lb at Atlantic City reef on jumbo Gulp grub (NJF: 5/15), 8.7 lb at Cape May reef on live mackerel (SO: 5/22). Pattern: all ocean-side, all on live bait or jumbo plastics, all in 60+ ft depth.' Faithfulness rule: must include NJ-context definition AND cite specific 8+ lb reports from corpus with weight + location + bait (or F-16 if no doormat-class catches in window).",
+    "expected_citations": [
+      "NJ Fishing fluke size threads",
+      "StripersOnline doormat reports",
+      "corpus 8lb+ fluke entries"
+    ],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; definitional query. SWAPPED from 'What's biting in NJ right now?' (overlapped with #17). Pattern: NJ-context definition + where/when it applies + corpus evidence of recent trophy catches."
   },
   {
     "id": 20,
     "species": "mixed",
-    "query": "When working a popper at dawn, can both bluefish and stripers commit on the same plug?",
-    "expected_answer": "Wave 2 placeholder — hand-review required. Both species will pop the same surface plug at dawn, but bluefish tend to hit harder and require wire or heavy fluoro to avoid bite-offs.",
-    "reviewed_by": null,
-    "reviewed_at": null,
-    "reviewer_notes": "Wave 2 placeholder — hand-review required"
+    "query_type": "out_of_scope",
+    "query": "Are the trout biting in the Pequest River this weekend?",
+    "expected_answer": "I'm focused on NJ saltwater fishing (stripers, fluke, bluefish, weakfish, tog) and don't cover freshwater trout fishing on the Pequest River. For freshwater stocking schedules and trout reports, check the NJ Division of Fish & Wildlife trout stocking page or the NJ.com fishing forum freshwater section. If you're open to a saltwater trip this weekend instead, I can suggest a target based on conditions.",
+    "expected_citations": [],
+    "reviewed_by": "X-commando",
+    "reviewed_at": "2026-05-23T18:30:00Z",
+    "reviewer_notes": "Wave 2 LLM-drafted candidate; awaiting human review. Out-of-scope guardrail test \u2014 agent should refuse freshwater queries."
   }
 ]
