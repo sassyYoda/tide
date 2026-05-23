@@ -1,0 +1,16 @@
+# Terraform state + locals
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+crash.log
+crash.*.log
+
+# Local var files (real secrets) — only the .example is committed.
+staging.tfvars
+production.tfvars
+*.auto.tfvars
+
+# Generated plans
+plan.bin
+plan.tfplan

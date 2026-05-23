@@ -1,0 +1,2 @@
+# Module deferred to plan 06-02 (Wave 1) — e2-micro VM with cloud-init swap + Timescale + Redis + Qdrant.
+# Placeholder so terraform init walks the modules/ tree without error.
