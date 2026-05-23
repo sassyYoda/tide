@@ -215,6 +215,15 @@ data/fb_transcriptions.csv
 data/forum_manifest.json
 data/forum_manifest_titles.txt
 
+# Phase 6 uplift run artifacts (regenerable from discover_uplift_threads.py)
+data/uplift_thread_manifest.json
+data/already_scraped_urls.txt
+data/structured_reports/uplift_extracted.jsonl
+data/structured_reports/.combined_raw.jsonl
+data/showcase_traces.json
+data/stripersonline_titles.txt
+data/model_registry_report.json
+
 # Claude Code worktree state (per-session, not version-controlled)
 .claude/
 
