@@ -6,13 +6,16 @@ login-gated pages (R-11 amended).
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import logging
 import os
 import pathlib
 import re
+import time
 from datetime import date, datetime, timezone
+from pathlib import Path
 from urllib import robotparser
 
 # vBulletin renders post timestamps as "#1 04-18-2026, 05:18 PM" inside td.thead
@@ -40,6 +43,91 @@ _MAX_BYTES = 2_000_000  # DoS guard per security domain
 _PER_DOMAIN_DELAY = 1.0  # polite: 1 req/s per host
 
 OUTPUT_DIR = pathlib.Path(__file__).resolve().parents[2] / "data" / "raw_reports"
+
+
+def load_excluded_urls(path: Path | None) -> set[str]:
+    """Read a one-URL-per-line file; ignore blank lines and ``#``-prefixed comments.
+
+    Used for dedup-against-existing-corpus runs: pass the file path via
+    ``--exclude-urls`` to skip any thread already represented in the corpus.
+    """
+    if path is None:
+        return set()
+    result: set[str] = set()
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        result.add(line)
+    return result
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Construct the scrape_forum.py CLI parser.
+
+    Extracted as a standalone function so tests can exercise argparse
+    validation without invoking ``main()``. New flags (Phase 6 R-01 uplift):
+
+    - ``--since YYYY-MM-DD``: skip threads with last-post date before cursor
+    - ``--max-pages N``: cap number of forum index pages walked per source
+    - ``--exclude-urls FILE``: text file (one URL per line) to dedup against
+    - ``--source NAME``: restrict to a single source key from ``FORUM_SOURCES``
+    - ``--output PATH``: override the per-source JSONL output path
+    - ``--manifest PATH``: path to the thread-paths manifest JSON
+    """
+    parser = argparse.ArgumentParser(
+        description=(
+            "Polite HTML forum scraper for NJ saltwater fishing reports. "
+            "Honors robots.txt (Pitfall P10) and enforces a 1 req/s polite "
+            "delay per domain."
+        )
+    )
+    parser.add_argument(
+        "--since",
+        type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
+        default=None,
+        help="Skip threads with last-post date before this YYYY-MM-DD cursor",
+    )
+    parser.add_argument(
+        "--max-pages",
+        type=int,
+        default=None,
+        help=(
+            "Cap number of forum index pages walked per source "
+            "(deeper history when raised)"
+        ),
+    )
+    parser.add_argument(
+        "--exclude-urls",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a text file with one URL per line to skip "
+            "(existing-corpus dedup)"
+        ),
+    )
+    parser.add_argument(
+        "--source",
+        type=str,
+        default=None,
+        help=(
+            "Restrict to a single FORUM_SOURCES key "
+            "(njfishing | stripersonline | surftalk)"
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Override per-source JSONL output path",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help="Path to forum_manifest.json (default: data/forum_manifest.json)",
+    )
+    return parser
 
 
 # Source config — MVP starts with NJFishing only.
@@ -118,7 +206,24 @@ async def scrape_source(
     source_key: str,
     thread_paths: list[str],
     client: httpx.AsyncClient | None = None,
+    *,
+    since: datetime | None = None,
+    max_pages: int | None = None,
+    exclude_urls: set[str] | None = None,
 ) -> list[RawReport]:
+    """Scrape a single FORUM_SOURCES key.
+
+    Phase 6 R-01 uplift kwargs:
+
+    - ``since``: skip per-thread results whose parsed post_date is earlier.
+    - ``max_pages``: cap iterations through ``thread_paths`` to bound depth.
+    - ``exclude_urls``: pre-built set of URLs to skip (dedup against existing
+      corpus). Built by :func:`load_excluded_urls`.
+
+    Pitfall P10 invariants preserved: ``robotparser.RobotFileParser`` check
+    before every GET (when ``respect_robots`` is true) and ``_PER_DOMAIN_DELAY``
+    async sleep after every fetch.
+    """
     cfg = FORUM_SOURCES[source_key]
     owns_client = client is None
     if client is None:
@@ -126,10 +231,18 @@ async def scrape_source(
             timeout=_TIMEOUT,
             headers={"User-Agent": "Tide/0.1 (research-mvp; +https://github.com/X-commando/tide)"},
         )
+    exclude_set = exclude_urls or set()
     reports: list[RawReport] = []
     try:
-        for path in thread_paths:
+        # max_pages caps the number of thread URLs walked per source.
+        bounded_paths = (
+            thread_paths if max_pages is None else thread_paths[: max(0, max_pages)]
+        )
+        for path in bounded_paths:
             url = cfg["base_url"] + path
+            if url in exclude_set:
+                log.info("Skipping excluded URL: %s", url)
+                continue
             if cfg.get("respect_robots", True) and not _check_robots(cfg["base_url"], path):
                 log.info("robots.txt disallows %s — skipping", url)
                 continue
@@ -164,6 +277,20 @@ async def scrape_source(
                             break
                         except ValueError:
                             continue
+            # --since cursor: drop threads whose parsed post_date predates the
+            # cutoff. Threads with unparseable dates pass through (conservative;
+            # the dedup-against-existing-URLs step keeps duplicates out).
+            if since is not None and post_date is not None:
+                if post_date < since.date():
+                    log.info(
+                        "Skipping %s — post_date %s before --since %s",
+                        url,
+                        post_date,
+                        since.date(),
+                    )
+                    # Polite delay even on skip-after-fetch (Pitfall P10).
+                    time.sleep(_PER_DOMAIN_DELAY)
+                    continue
             author_node = tree.css_first(cfg["author_selector"])
             author = author_node.text(strip=True) if author_node else None
             reports.append(
@@ -184,13 +311,33 @@ async def scrape_source(
     return reports
 
 
-async def main(thread_paths_by_source: dict[str, list[str]]) -> int:
+async def main(
+    thread_paths_by_source: dict[str, list[str]],
+    *,
+    since: datetime | None = None,
+    max_pages: int | None = None,
+    exclude_urls: set[str] | None = None,
+    only_source: str | None = None,
+    output_override: Path | None = None,
+) -> int:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     total = 0
     for src, paths in thread_paths_by_source.items():
-        reports = await scrape_source(src, paths)
-        out_path = OUTPUT_DIR / f"{src}_{ts}.jsonl"
+        if only_source is not None and src != only_source:
+            continue
+        reports = await scrape_source(
+            src,
+            paths,
+            since=since,
+            max_pages=max_pages,
+            exclude_urls=exclude_urls,
+        )
+        if output_override is not None:
+            out_path = output_override
+        else:
+            out_path = OUTPUT_DIR / f"{src}_{ts}.jsonl"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         with out_path.open("w") as f:
             for r in reports:
                 f.write(r.model_dump_json() + "\n")
@@ -201,7 +348,20 @@ async def main(thread_paths_by_source: dict[str, list[str]]) -> int:
 
 if __name__ == "__main__":
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
-    # Example: populate thread_paths_by_source from a manifest file
-    manifest = pathlib.Path(os.environ.get("FORUM_MANIFEST", "data/forum_manifest.json"))
-    paths = json.loads(manifest.read_text()) if manifest.exists() else {}
-    asyncio.run(main(paths))
+    parser = build_parser()
+    args = parser.parse_args()
+    manifest_path = args.manifest or pathlib.Path(
+        os.environ.get("FORUM_MANIFEST", "data/forum_manifest.json")
+    )
+    paths = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    exclude_set = load_excluded_urls(args.exclude_urls)
+    asyncio.run(
+        main(
+            paths,
+            since=args.since,
+            max_pages=args.max_pages,
+            exclude_urls=exclude_set,
+            only_source=args.source,
+            output_override=args.output,
+        )
+    )
