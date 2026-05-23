@@ -1,2 +1,0 @@
-# Module deferred to plan 06-03 (Wave 1) — Cloud Run backend + ingest jobs + Direct VPC Egress.
-# Placeholder so terraform init walks the modules/ tree without error.
