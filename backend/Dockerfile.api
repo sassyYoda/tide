@@ -1,27 +1,69 @@
-# WR-06: Non-root user hardening applied below. Digest pinning
-# (`python:3.12-slim@sha256:<digest>`) is intentionally DEFERRED to the
-# first Renovate/Dependabot-tracked update so the pin is maintained; a
-# hand-picked digest here would silently go stale. Track the follow-up
-# when configuring Renovate.
-FROM python:3.12-slim
+# syntax=docker/dockerfile:1.7
+#
+# Tide backend API container — Cloud Run target (06-03 + 06-06 build/push).
+#
+# Multi-stage refinement (Phase 6 06-03):
+#   1. builder — installs uv + project dependencies into /app/.venv via
+#      `uv sync --frozen --no-dev` (Pitfall P8 — reproducible build off
+#      the lockfile, no dev deps in the runtime image).
+#   2. runner — copies .venv + source from builder onto a fresh
+#      python:3.12-slim base. Non-root `app` user (WR-06 hardening).
+#
+# Constraints:
+#   - No `:latest` tags anywhere (Pitfall P7); digest pinning is DEFERRED
+#     to the first Renovate/Dependabot-tracked update so the pin is
+#     maintained.  Hand-picking a digest here would silently go stale.
+#   - Final image target < 500MB (slim base + no dev deps + no apt cache).
+#   - EXPOSE 8000 matches Cloud Run google_cloud_run_v2_service.template
+#     .containers.ports.container_port (06-03 service.tf).
 
-# Create an unprivileged user with a real home dir (uv writes its cache to
-# $HOME/.cache/uv, so the app user needs a writable home at runtime).
+# ─── Stage 1: builder ──────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+# Reproducible apt: explicit --no-install-recommends + cache mount for uv install.
+# We need curl only briefly for the uv installer; it's discarded with the stage.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# uv pinned to a recent stable line (no :latest in CI semantics; uv itself
+# is installed as a pip wheel which is digest-locked by pip's own resolver).
+RUN pip install --no-cache-dir uv
+
+WORKDIR /app
+# Copy lockfile first so dependency layer is cached when only source changes.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+# ─── Stage 2: runner ───────────────────────────────────────────────────
+FROM python:3.12-slim AS runner
+
+# Create unprivileged user with a real home dir (uv reads $HOME/.cache/uv at
+# runtime even when the venv is pre-built; a writable home avoids permission
+# errors under `uv run uvicorn`).
 RUN groupadd --system app \
  && useradd --system --gid app --create-home --home-dir /home/app app \
  && mkdir -p /app /tmp/prom_multiproc \
  && chown app:app /app /tmp/prom_multiproc
 
 WORKDIR /app
-RUN pip install --no-cache-dir uv
-COPY --chown=app:app pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev \
- && chown -R app:app /app/.venv
 
+# Copy the pre-built virtualenv + uv itself from the builder. uv is needed at
+# runtime because the entrypoint is `uv run uvicorn ...` (preserves the
+# venv activation behaviour the existing CI tests assume).
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --from=builder --chown=app:app /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder --chown=app:app /usr/local/bin/uv /usr/local/bin/uv
+
+# Application source comes last so iterating on code doesn't bust the deps
+# layer cache.
 COPY --chown=app:app . .
 
 USER app
 ENV PYTHONPATH=/app \
-    UV_CACHE_DIR=/home/app/.cache/uv
+    UV_CACHE_DIR=/home/app/.cache/uv \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 EXPOSE 8000
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

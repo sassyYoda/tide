@@ -32,6 +32,7 @@ from slowapi.errors import RateLimitExceeded
 from app import api  # noqa: F401 — touches deps so app.api is importable
 from app.api.conditions import router as conditions_router
 from app.api.health import mark_model_loaded, router as health_router
+from app.middleware.csp import CSPMiddleware
 from cache import metrics as _cache_metrics_module  # noqa: F401 — register cache hit/miss counters
 from ingest import metrics as _metrics_module  # noqa: F401 — register metrics
 
@@ -107,6 +108,15 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         max_age=3600,
     )
+
+    # ─── Content-Security-Policy (SEC-05, Phase 6 plan 06-03) ───────────
+    # Added immediately after CORS so CORS pre-flight headers attach first;
+    # CSP attaches on response egress. Order in Starlette is reverse-add:
+    # later add_middleware calls wrap earlier ones, so on the inbound path
+    # CSP runs after CORS, and on the outbound path CSP runs before CORS —
+    # which is exactly what we want (CSP header set on every response,
+    # CORS headers added afterwards if origin matches).
+    app.add_middleware(CSPMiddleware)
 
     # ─── slowapi rate limiter (SEC-02 / L-05) ───────────────────────────
     # WR-05 was a Phase 1 deferral; this fulfills it for Phase 3 traffic. The

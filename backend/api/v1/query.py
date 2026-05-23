@@ -49,7 +49,7 @@ from typing import Any, AsyncIterator
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
-from sse_starlette.sse import EventSourceResponse
+from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 from agent.runtime import iter_sse_events
 from agent.sse_protocol import (
@@ -115,7 +115,17 @@ async def query(
         recommendation
     """
     body_dict = body.model_dump()
-    return EventSourceResponse(_event_generator(request, body_dict, redis))
+    # Pitfall P3 — Cloud Run drops idle connections at ~5min (LB) / ~15min
+    # (service). A 10-second ping (rendered as ``: keepalive\n\n`` SSE
+    # comment by the ServerSentEvent(comment=...) factory) keeps the stream
+    # alive through long Synthesizer LLM round-trips. The comment is
+    # silently discarded by eventsource-parser v3.0.8 on the frontend
+    # (RESEARCH A7).
+    return EventSourceResponse(
+        _event_generator(request, body_dict, redis),
+        ping=10,
+        ping_message_factory=lambda: ServerSentEvent(comment="keepalive"),
+    )
 
 
 async def _event_generator(
