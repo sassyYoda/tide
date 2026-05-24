@@ -20,6 +20,12 @@ class _StubResultEmpty:
     def all(self) -> list[Any]:
         return []
 
+    def first(self) -> None:
+        return None
+
+    def mappings(self) -> "_StubResultEmpty":
+        return self
+
 
 class _StubAsyncSession:
     """Minimal async session that returns no rows for every query."""

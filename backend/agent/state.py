@@ -34,7 +34,13 @@ RejectReason = Literal[
 SpeciesCanonical = Literal[
     "striper", "fluke", "bluefish", "weakfish", "tautog"
 ]
-Intent = Literal["fishing-recommendation", "out-of-scope"]
+Intent = Literal[
+    "fishing-recommendation",
+    "comparison",
+    "best-of-all",
+    "definition",
+    "out-of-scope",
+]
 
 
 class RAGChunk(TypedDict, total=False):
@@ -63,6 +69,9 @@ class TideAgentState(TypedDict, total=False):
     intent: Intent
     species_canonical: SpeciesCanonical | None
     location_hint_raw: str | None
+    # Verbatim multi-location strings when the user asks a comparison
+    # ("manasquan or sandy hook"). Only set when intent='comparison'.
+    compare_locations_raw: list[str] | None
     time_window_label: str | None
     time_window_start: datetime | None
     time_window_end: datetime | None
@@ -81,6 +90,11 @@ class TideAgentState(TypedDict, total=False):
     conditions_stale: bool  # default False; set True if data_age_seconds > 35min
     ml_score_available: bool  # default True; set False if species not in SPECIES_MODELS
     data_age_seconds: float | None
+    # Multi-spot context for comparison + best-of-all intents. Each entry:
+    # {spot_id, spot_name, lat, lon, station_id, conditions, data_age_seconds}.
+    # ``spot_id``/``spot_name`` on the top level is the synthesizer's
+    # primary recommendation (heuristic pick — see data_fetcher).
+    candidate_spots: list[dict[str, Any]] | None
     data_fetcher_latency_ms: float
 
     # ─── RAG Retriever output ──────────────────────────────────────────

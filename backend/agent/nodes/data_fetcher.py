@@ -405,16 +405,134 @@ def _normalize_to_utc(t: datetime) -> datetime:
     return t.replace(tzinfo=timezone.utc) if t.tzinfo is None else t
 
 
-async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
-    """Resolve spot → read conditions + score → set graceful flags.
+async def _load_candidate_spots_by_species(
+    session: Any, species: str | None, limit: int = 5,
+) -> list[dict[str, Any]]:
+    """Return up to ``limit`` deterministic fishing_spots rows for the species.
 
-    Returns a partial state-update dict. Never raises for missing-model
-    or stale-data conditions — those are signalled via flags.
+    Each row: ``{spot_id, name, lat, lon, station_id}``. Caller fetches
+    conditions per-row. Order is ``spot_id ASC`` so behavior is reproducible.
+    """
+    from db.models import FishingSpot
+
+    stmt = select(
+        FishingSpot.spot_id,
+        FishingSpot.name,
+        FishingSpot.lat,
+        FishingSpot.lon,
+        FishingSpot.nearest_station,
+    ).order_by(FishingSpot.spot_id)
+    if species:
+        stmt = stmt.where(FishingSpot.species.any(species))
+    stmt = stmt.limit(limit)
+    rows = (await session.execute(stmt)).all()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        out.append({
+            "spot_id": int(r[0]),
+            "spot_name": r[1],
+            "lat": float(r[2]),
+            "lon": float(r[3]),
+            "station_id": r[4],
+        })
+    return out
+
+
+async def _fuzzy_resolve_each(
+    session: Any, names: list[str], species: str | None,
+) -> list[dict[str, Any]]:
+    """Resolve each name string to a fishing_spots row via the spot resolver.
+
+    Names that fail to resolve are dropped (logged as warnings). Returns
+    a list of ``{spot_id, spot_name, lat, lon, station_id}`` dicts. Order
+    follows input order.
+    """
+    out: list[dict[str, Any]] = []
+    seen_ids: set[int] = set()
+    for name in names:
+        if not name or not name.strip():
+            continue
+        res: ResolvedSpot = resolve_spot(name)
+        if res.spot_id is None or res.spot_id in seen_ids:
+            log.info("data_fetcher: compare candidate '%s' did not resolve", name)
+            continue
+        seen_ids.add(res.spot_id)
+        station_id = await _read_spot_station(session, res.spot_id)
+        out.append({
+            "spot_id": res.spot_id,
+            "spot_name": res.spot_name,
+            "lat": res.lat,
+            "lon": res.lon,
+            "station_id": station_id,
+            "user_query_term": name,
+        })
+    return out
+
+
+async def _enrich_candidates_with_conditions(
+    session: Any, candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Attach ``conditions`` + ``data_age_seconds`` to each candidate in-place."""
+    now = datetime.now(tz=timezone.utc)
+    for cand in candidates:
+        station_id = cand.get("station_id")
+        if not station_id:
+            cand["conditions"] = None
+            cand["data_age_seconds"] = None
+            continue
+        cond = await _read_latest_conditions(session, station_id)
+        cand["conditions"] = cond["conditions"]
+        if cond["observed_at"] is not None:
+            t_obs = _normalize_to_utc(cond["observed_at"])
+            cand["data_age_seconds"] = (now - t_obs).total_seconds()
+        else:
+            cand["data_age_seconds"] = None
+    return candidates
+
+
+async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
+    """Resolve spot(s) → read conditions + score → set graceful flags.
+
+    Branches on ``state['intent']``:
+    - ``definition``: skip spot/conditions read entirely (RAG-only path).
+    - ``comparison``: resolve every name in ``compare_locations_raw`` and
+      fetch per-spot conditions. The first successfully resolved candidate
+      becomes the canonical ``spot_id`` for the SSE payload; the synthesizer
+      sees the full list and ranks.
+    - ``best-of-all``: fetch up to 5 candidate fishing_spots for the species,
+      one canonical pick (lowest spot_id) surfaced for the payload.
+    - default (``fishing-recommendation``): single-spot resolve, with a
+      no-pin / "none" fallback that fires whenever the resolver returns no
+      spot AND a species was supplied.
+
+    Returns a partial state-update dict. Never raises — missing-model /
+    stale-conditions / unresolved-spot cases are signalled via flags.
     """
     from db.session import async_session_factory
 
     t0 = time.perf_counter()
+    intent = state.get("intent") or "fishing-recommendation"
     species = state.get("species_canonical")
+
+    # Definition queries skip the entire DB read path — they're answered
+    # from the RAG corpus + general knowledge by the synthesizer.
+    if intent == "definition":
+        return {
+            "spot_resolution_strategy": "none",
+            "spot_id": None,
+            "spot_name": None,
+            "spot_lat": None,
+            "spot_lon": None,
+            "ml_score_available": False,
+            "conditions_stale": False,
+            "conditions": None,
+            "ml_score": None,
+            "shap_top3": None,
+            "data_age_seconds": None,
+            "candidate_spots": None,
+            "data_fetcher_latency_ms": (time.perf_counter() - t0) * 1000,
+        }
+
     location_hint = state.get("location_hint") or {}
     raw_name = state.get("location_hint_raw") or location_hint.get("spot_name")
     lat = location_hint.get("lat")
@@ -434,11 +552,67 @@ async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
         "ml_score": None,
         "shap_top3": None,
         "data_age_seconds": None,
+        "candidate_spots": None,
     }
 
     async with async_session_factory() as session:
-        # No-pin fallback (D-05.3): pick the top-scored spot for the species.
-        if resolved.spot_id is None and resolved.strategy == "no_pin":
+        # ── Multi-spot intents resolve candidates first ──────────────────
+        candidates: list[dict[str, Any]] = []
+        if intent == "comparison":
+            names = state.get("compare_locations_raw") or []
+            if names:
+                candidates = await _fuzzy_resolve_each(session, names, species)
+        elif intent == "best-of-all":
+            candidates = await _load_candidate_spots_by_species(
+                session, species, limit=5,
+            )
+            for c in candidates:
+                c["user_query_term"] = None
+
+        if candidates:
+            await _enrich_candidates_with_conditions(session, candidates)
+            update["candidate_spots"] = candidates
+            # First candidate becomes the canonical pick for the SSE
+            # payload + freshness gauge. Synthesizer prompt then ranks all
+            # candidates explicitly in its text output.
+            primary = candidates[0]
+            update["spot_id"] = primary["spot_id"]
+            update["spot_name"] = primary["spot_name"]
+            update["spot_lat"] = primary["lat"]
+            update["spot_lon"] = primary["lon"]
+            update["conditions"] = primary.get("conditions")
+            update["data_age_seconds"] = primary.get("data_age_seconds")
+            if (
+                update["data_age_seconds"] is not None
+                and update["data_age_seconds"] > FRESHNESS_THRESHOLD.total_seconds()
+            ):
+                update["conditions_stale"] = True
+            # ML score path is best-effort even for multi-spot; only run
+            # when a species was supplied. The persisted-score read is cheap
+            # (single PK lookup) and falls back to a fresh score if needed.
+            if species:
+                score_row = await _read_latest_activity_score(
+                    session, primary["spot_id"], species,
+                )
+                if score_row["score"] is not None:
+                    update["ml_score"] = score_row["score"]
+                    update["shap_top3"] = score_row["shap_top3"]
+                    update["ml_score_available"] = True
+            update["data_fetcher_latency_ms"] = (
+                (time.perf_counter() - t0) * 1000
+            )
+            return update
+
+        # ── Single-spot path (fishing-recommendation default + no-pin) ───
+        # No-pin fallback (D-05.3): pick a spot for the species when the
+        # resolver could not. Triggers on either "no_pin" (query string
+        # supplied but didn't fuzzy-match) or "none" (no query string at
+        # all — happens when planner extracted location_hint_raw=null).
+        if (
+            resolved.spot_id is None
+            and resolved.strategy in ("no_pin", "none")
+            and species is not None
+        ):
             fb_id = await _topn_fallback(session, species)
             if fb_id is not None:
                 update["spot_id"] = fb_id

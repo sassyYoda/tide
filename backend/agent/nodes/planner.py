@@ -197,7 +197,13 @@ MVP5 = Literal["striper", "fluke", "bluefish", "weakfish", "tautog"]
 
 
 class PlannerOutput(BaseModel):
-    intent: Literal["fishing-recommendation", "out-of-scope"]
+    intent: Literal[
+        "fishing-recommendation",
+        "comparison",
+        "best-of-all",
+        "definition",
+        "out-of-scope",
+    ]
     species_canonical: MVP5 | None = Field(
         default=None,
         description=(
@@ -213,6 +219,15 @@ class PlannerOutput(BaseModel):
             "Verbatim location string the user gave (e.g. 'Barnegat Inlet', "
             "'IBSP', 'north jetty'). Null if no location mentioned. "
             "Bounded to 120 chars."
+        ),
+    )
+    compare_locations_raw: list[str] | None = Field(
+        default=None,
+        max_length=5,
+        description=(
+            "When intent='comparison', the verbatim location strings the user "
+            "wants compared (e.g. ['Manasquan', 'Sandy Hook']). Each entry "
+            "bounded to 60 chars. Null for non-comparison intents."
         ),
     )
     time_window_label: str | None = Field(
@@ -273,6 +288,26 @@ def _system_prompt() -> str:
         "\n"
         f"{_NICKNAMES_BLOCK}\n"
         "\n"
+        "Intent values:\n"
+        "- fishing-recommendation: a single-spot or anywhere-near-me question "
+        "  ('stripers at manasquan saturday', 'how's the fluke bite').\n"
+        "- comparison: user explicitly weighs ≥2 locations against each other "
+        "  ('manasquan or sandy hook for striper', 'IBSP vs Barnegat for "
+        "  fluke this weekend'). Extract every location verbatim into "
+        "  compare_locations_raw. location_hint_raw stays null.\n"
+        "- best-of-all: user asks for the BEST spot for a species without "
+        "  specifying any location ('where should I fish for striped bass?', "
+        "  'best spot for tautog tomorrow'). location_hint_raw stays null; "
+        "  species_canonical MUST be set.\n"
+        "- definition: user asks WHAT a fishing term/technique/rig/bait/gear is "
+        "  or how to use it ('what's the snafu rig', 'how do you fish a "
+        "  bucktail', 'tell me about chunking bunker', 'what's chumming'). "
+        "  Always classify gear/technique/rig/jargon questions as 'definition', "
+        "  NOT out-of-scope — they are fishing questions even without a "
+        "  species or location. Set species_canonical=null unless the user "
+        "  asked about the term in connection with a specific MVP-5 species.\n"
+        "- out-of-scope: only when the query truly is not about fishing.\n"
+        "\n"
         "Reject paths (set intent='out-of-scope' and reject_reason accordingly):\n"
         "- non_mvp_species: user asked about a fish that is NOT one of the "
         "MVP-5 even after lexicon normalization (e.g., 'red drum', 'tuna', "
@@ -280,8 +315,10 @@ def _system_prompt() -> str:
         "- non_nj_geo: user asked about a location outside NJ saltwater (e.g., "
         "'Maine', 'Florida', 'Cape Cod', a freshwater 'lake' or 'pond', a "
         "'river' upstream of tidewater).\n"
-        "- non_fishing: user asked something not about fishing recommendations "
-        "(e.g., 'rent a boat', 'swim', 'beach weather forecast', 'restaurant').\n"
+        "- non_fishing: user asked something genuinely unrelated to fishing "
+        "(e.g., 'rent a boat', 'swim', 'beach weather forecast', "
+        "'restaurant'). Gear/technique/rig/jargon questions are NEVER "
+        "non_fishing — they belong in 'definition'.\n"
         "\n"
         "When intent='fishing-recommendation', extract the verbatim location "
         "string (no normalization here — the Data Fetcher resolves spot names "
@@ -407,10 +444,21 @@ async def planner_node(state: TideAgentState) -> dict[str, Any]:
 
     start, end = _parse_time_window(out.time_window_label)
 
+    # Defense-in-depth: trim/normalize compare_locations_raw before it flows
+    # downstream. The planner schema bounds list length to 5 + each entry to
+    # the model's natural string length; we additionally cap each entry to
+    # 60 chars and drop blanks.
+    compare_locs: list[str] | None = None
+    if out.compare_locations_raw:
+        compare_locs = [
+            s.strip()[:60] for s in out.compare_locations_raw if s and s.strip()
+        ] or None
+
     update: dict[str, Any] = {
         "intent": out.intent,
         "species_canonical": out.species_canonical,
         "location_hint_raw": out.location_hint_raw,
+        "compare_locations_raw": compare_locs,
         "time_window_label": out.time_window_label,
         "time_window_start": start,
         "time_window_end": end,

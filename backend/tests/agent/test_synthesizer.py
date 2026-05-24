@@ -252,3 +252,74 @@ def test_format_user_message_includes_retrieval_ok_caveat():
     }
     user_text = _format_user_message(state)
     assert "RAG retrieval was unavailable" in user_text
+
+
+# ─── Multi-intent user-message rendering (planner upgrade — 5 intents) ──
+
+
+def test_format_user_message_comparison_renders_candidate_spots():
+    """intent=comparison: render Candidate spots section with each spot's conditions inline."""
+    from agent.nodes.synthesizer import _format_user_message
+
+    state = {
+        "intent": "comparison",
+        "query": "manasquan or sandy hook for striper",
+        "species_canonical": "striper",
+        "candidate_spots": [
+            {
+                "spot_id": 10,
+                "spot_name": "Manasquan Inlet",
+                "lat": 40.1,
+                "lon": -74.03,
+                "station_id": "8533615",
+                "conditions": {
+                    "water_temp_c": 13.8,
+                    "wind_speed_ms": 4.2,
+                    "surface_pressure_hpa": 1028.0,
+                    "solunar_quality_score": 0.81,
+                },
+                "data_age_seconds": 600.0,
+                "user_query_term": "manasquan",
+            },
+            {
+                "spot_id": 22,
+                "spot_name": "Sandy Hook",
+                "lat": 40.46,
+                "lon": -74.0,
+                "station_id": "8531680",
+                "conditions": {
+                    "water_temp_c": 12.4,
+                    "wind_speed_ms": 7.9,
+                    "surface_pressure_hpa": 1021.0,
+                    "solunar_quality_score": 0.55,
+                },
+                "data_age_seconds": 720.0,
+                "user_query_term": "sandy hook",
+            },
+        ],
+        "chunks": [],
+        "retrieval_ok": True,
+        "conditions_stale": False,
+    }
+    user_text = _format_user_message(state)
+    assert "Candidate spots" in user_text
+    assert "Manasquan Inlet" in user_text
+    assert "Sandy Hook" in user_text
+    # At least one condition value from each candidate must be rendered verbatim.
+    assert "13.8" in user_text  # Manasquan water_temp_c
+    assert "12.4" in user_text  # Sandy Hook water_temp_c
+
+
+def test_format_user_message_definition_drops_conditions_block():
+    """intent=definition: drop Spot/Conditions/ML/Time-window; signal definition intent."""
+    from agent.nodes.synthesizer import _format_user_message
+
+    state = {
+        "intent": "definition",
+        "query": "what's the snafu rig",
+        "chunks": [],
+        "retrieval_ok": True,
+    }
+    user_text = _format_user_message(state)
+    assert "technique/gear definition question" in user_text
+    assert "Conditions:" not in user_text
