@@ -13,17 +13,21 @@ Behavior contracts:
   the highest is selected as ``spot_id``.
 - P-06: XGBoost inference per spot ≤ 50 ms.
 
-Read source: ``activity_scores`` (composite PK ``(spot_id, species, time)``)
-is the canonical store written by the Celery beat scorer every 15 min
-(see ``backend/celery_app/tasks/scorer.py``). The Data Fetcher reads the
-LATEST row for the (spot, species) pair — features live in
-``raw_payload['features']``, SHAP in ``shap_values['top_features']``.
+Read sources (decoupled — see Phase 6 post-launch fix):
+- Conditions come from the raw observation tables — ``tidal_observations``,
+  ``weather_observations``, ``solunar_values`` — keyed by
+  ``fishing_spots.nearest_station``. ``data_age_seconds`` is derived from
+  the freshest observation row across the three feeds.
+- ML score + SHAP still come from ``activity_scores`` written by the
+  ``score_all_spots`` Celery task. When no production model is loaded for
+  the species (Phase 2 M-08/M-09 promotion deferred to v1.x), no
+  ``ActivityScore`` rows exist; ``ml_score_available`` flips False but
+  ``conditions`` still surfaces live readings.
 
 ML signature note (deviation from PLAN.md ``<interfaces>``): the
 Phase-2 ``ml.model.score_one(species, X_row)`` signature takes a numpy
 row and returns a single float. SHAP comes from ``ml.shap_utils.top_k_shap``.
-This module reuses the persisted (score, shap) pair when fresh — the
-Celery scorer recomputed them ≤ 15 min ago by contract — and only
+This module reuses the persisted (score, shap) pair when fresh and only
 re-runs ``score_one`` when forced (a feature gate kept off at MVP).
 """
 from __future__ import annotations
@@ -33,7 +37,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, text
 
 from agent.spot_resolver import ResolvedSpot, resolve_spot
 from agent.state import TideAgentState
@@ -113,6 +117,11 @@ async def _read_latest_activity_score(
 
     Returns a dict with ``score``, ``shap_top3``, ``time``, ``conditions``,
     ``raw_payload``. All keys may be ``None`` when no row exists.
+
+    ``conditions`` is retained on this dict for legacy callers / tests, but
+    ``data_fetcher_node`` no longer treats it as the canonical conditions
+    source — that role moved to ``_read_latest_conditions`` so a missing ML
+    model can't blank out live environmental readings.
     """
     from db.models import ActivityScore
 
@@ -138,6 +147,146 @@ async def _read_latest_activity_score(
         "conditions": _summarize_conditions(row.raw_payload),
         "raw_payload": row.raw_payload,
     }
+
+
+# Fields surfaced to the synthesizer prompt. Keep narrow + named the way an
+# angler would read them so the LLM doesn't have to translate column names.
+async def _read_latest_conditions(
+    session: Any, station_id: str,
+) -> dict[str, Any]:
+    """Read latest tidal + weather + solunar values directly for ``station_id``.
+
+    Returns a dict with two keys:
+
+    - ``conditions``: flat dict of human-readable fields (or ``None`` when no
+      data exists for the station yet).
+    - ``observed_at``: the freshest ``time`` across the three reads — used to
+      compute ``data_age_seconds`` and the ``conditions_stale`` flag.
+
+    Implementation: three small ORDER BY time DESC LIMIT 1 reads (one per
+    feed). Each is a single index seek on (station_id, time DESC) — cheap
+    enough that we don't need the ``conditions_15min`` CAGG here.
+    """
+    out: dict[str, Any] = {}
+    freshest: datetime | None = None
+
+    tide_row = (
+        await session.execute(
+            text(
+                "SELECT time, water_level_m, water_temp_c, wind_speed_ms, "
+                "wind_dir_deg, current_speed_ms, current_dir_deg "
+                "FROM tidal_observations WHERE station_id = :sid "
+                "ORDER BY time DESC LIMIT 1"
+            ),
+            {"sid": station_id},
+        )
+    ).mappings().first()
+    if tide_row is not None:
+        for k in (
+            "water_level_m",
+            "water_temp_c",
+            "current_speed_ms",
+            "current_dir_deg",
+        ):
+            if tide_row.get(k) is not None:
+                out[k] = tide_row[k]
+        # Wind from NOAA when present takes precedence over Open-Meteo
+        # because the gauge is co-located with the station vs. interpolated.
+        if tide_row.get("wind_speed_ms") is not None:
+            out["wind_speed_ms"] = tide_row["wind_speed_ms"]
+        if tide_row.get("wind_dir_deg") is not None:
+            out["wind_dir_deg"] = tide_row["wind_dir_deg"]
+        if tide_row.get("time") is not None:
+            freshest = tide_row["time"]
+
+    weather_row = (
+        await session.execute(
+            text(
+                "SELECT time, wind_speed_ms, wind_dir_deg, surface_pressure_hpa, "
+                "temperature_2m_c, precipitation_prob_pct, cloud_cover_pct "
+                "FROM weather_observations WHERE station_id = :sid "
+                "ORDER BY time DESC LIMIT 1"
+            ),
+            {"sid": station_id},
+        )
+    ).mappings().first()
+    if weather_row is not None:
+        # Fill wind only when NOAA didn't supply it (gauge-vs-interpolated).
+        if (
+            weather_row.get("wind_speed_ms") is not None
+            and "wind_speed_ms" not in out
+        ):
+            out["wind_speed_ms"] = weather_row["wind_speed_ms"]
+        if (
+            weather_row.get("wind_dir_deg") is not None
+            and "wind_dir_deg" not in out
+        ):
+            out["wind_dir_deg"] = weather_row["wind_dir_deg"]
+        for src, dst in (
+            ("surface_pressure_hpa", "surface_pressure_hpa"),
+            ("temperature_2m_c", "air_temperature_c"),
+            ("precipitation_prob_pct", "precipitation_prob_pct"),
+            ("cloud_cover_pct", "cloud_cover_pct"),
+        ):
+            if weather_row.get(src) is not None:
+                out[dst] = weather_row[src]
+        if weather_row.get("time") is not None:
+            if freshest is None or weather_row["time"] > freshest:
+                freshest = weather_row["time"]
+
+    sol_row = (
+        await session.execute(
+            text(
+                "SELECT time, moon_phase, illumination, lunar_day, "
+                "quality_score, sunrise, sunset, "
+                "next_major_start, next_major_end, "
+                "next_minor_start, next_minor_end "
+                "FROM solunar_values WHERE station_id = :sid "
+                "ORDER BY time DESC LIMIT 1"
+            ),
+            {"sid": station_id},
+        )
+    ).mappings().first()
+    if sol_row is not None:
+        for k in ("moon_phase", "illumination", "lunar_day"):
+            if sol_row.get(k) is not None:
+                out[k] = sol_row[k]
+        if sol_row.get("quality_score") is not None:
+            out["solunar_quality_score"] = sol_row["quality_score"]
+        for k in (
+            "sunrise",
+            "sunset",
+            "next_major_start",
+            "next_major_end",
+            "next_minor_start",
+            "next_minor_end",
+        ):
+            if sol_row.get(k) is not None:
+                out[k] = sol_row[k].isoformat()
+        if sol_row.get("time") is not None:
+            if freshest is None or sol_row["time"] > freshest:
+                freshest = sol_row["time"]
+
+    return {
+        "conditions": out or None,
+        "observed_at": freshest,
+    }
+
+
+async def _read_spot_station(session: Any, spot_id: int) -> str | None:
+    """Return the ``nearest_station`` for ``spot_id``, or None if unknown."""
+    from db.models import FishingSpot
+
+    row = (
+        await session.execute(
+            select(FishingSpot.nearest_station).where(
+                FishingSpot.spot_id == spot_id
+            )
+        )
+    ).first()
+    if row is None:
+        return None
+    return str(row[0]) if row[0] is not None else None
 
 
 async def _read_spot_meta(session: Any, spot_id: int) -> dict[str, Any] | None:
@@ -289,25 +438,31 @@ async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
                     update["spot_lon"] = meta["lon"]
 
         if update.get("spot_id") is not None:
-            # Conditions + persisted score for the resolved (spot, species).
+            # Conditions come from the raw observation tables (decoupled from
+            # ActivityScore so a missing ML model can't blank them out).
+            station_id = await _read_spot_station(session, update["spot_id"])
+            if station_id is not None:
+                cond = await _read_latest_conditions(session, station_id)
+                update["conditions"] = cond["conditions"]
+                if cond["observed_at"] is not None:
+                    t_obs_utc = _normalize_to_utc(cond["observed_at"])
+                    age = (
+                        datetime.now(tz=timezone.utc) - t_obs_utc
+                    ).total_seconds()
+                    update["data_age_seconds"] = age
+                    if age > FRESHNESS_THRESHOLD.total_seconds():
+                        update["conditions_stale"] = True
+                        log.warning(
+                            "data_fetcher: conditions stale (age=%.0fs) station=%s",
+                            age, station_id,
+                        )
+
+            # Persisted score (ML) — independent of conditions read above.
             data = await _read_latest_activity_score(
                 session, update["spot_id"], species,
             )
-            update["conditions"] = data["conditions"]
-
             persisted_score = data["score"]
             persisted_shap = data["shap_top3"]
-            t_score = data["time"]
-            if t_score is not None:
-                t_score_utc = _normalize_to_utc(t_score)
-                age = (datetime.now(tz=timezone.utc) - t_score_utc).total_seconds()
-                update["data_age_seconds"] = age
-                if age > FRESHNESS_THRESHOLD.total_seconds():
-                    update["conditions_stale"] = True
-                    log.warning(
-                        "data_fetcher: conditions stale (age=%.0fs) for spot=%s",
-                        age, update["spot_id"],
-                    )
 
             if species:
                 # Persisted score is the canonical Phase-3 source. Only

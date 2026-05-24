@@ -141,10 +141,45 @@ def seed_spot_and_score(fetcher_urls):
                           '"model_run_id": "abc123"}',
                 },
             )
+
+            # Fresh tidal + weather + solunar rows — post-refactor data_fetcher
+            # reads conditions from these tables directly (not ActivityScore).
+            conn.execute(
+                sa.text(
+                    "INSERT INTO tidal_observations "
+                    "(station_id, time, water_level_m, water_temp_c, "
+                    "wind_speed_ms, wind_dir_deg, raw_payload) "
+                    "VALUES (:sid, :t, 0.42, 14.1, 4.8, 90, CAST('{}' AS JSONB))"
+                ),
+                {"sid": "DF_TEST_STATION_1", "t": now - timedelta(seconds=60)},
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO weather_observations "
+                    "(station_id, time, wind_speed_ms, wind_dir_deg, "
+                    "surface_pressure_hpa, temperature_2m_c, "
+                    "precipitation_prob_pct, cloud_cover_pct, raw_payload) "
+                    "VALUES (:sid, :t, 5.1, 92, 1015.3, 13.2, 14.0, 22.0, "
+                    "CAST('{}' AS JSONB))"
+                ),
+                {"sid": "DF_TEST_STATION_1", "t": now - timedelta(seconds=120)},
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO solunar_values "
+                    "(station_id, time, moon_phase, moon_phase_sin, "
+                    "moon_phase_cos, illumination, lunar_day, quality_score) "
+                    "VALUES (:sid, :t, 0.26, 0.99, 0.07, 0.61, 7.7, 0.81)"
+                ),
+                {"sid": "DF_TEST_STATION_1", "t": now - timedelta(minutes=5)},
+            )
         yield spot_id_holder["spot_id"]
     finally:
         with engine.begin() as conn:
             conn.execute(sa.text("DELETE FROM activity_scores"))
+            conn.execute(sa.text("DELETE FROM tidal_observations"))
+            conn.execute(sa.text("DELETE FROM weather_observations"))
+            conn.execute(sa.text("DELETE FROM solunar_values"))
             conn.execute(sa.text("DELETE FROM fishing_spots"))
             conn.execute(sa.text("DELETE FROM noaa_stations"))
         engine.dispose()
@@ -180,10 +215,13 @@ async def test_data_fetcher_resolves_and_reads_persisted_score(
     assert out["spot_resolution_strategy"] == "fuzzy_name"
     assert out["spot_name"] == "Barnegat Inlet — North Jetty"
     assert out["conditions"] is not None
-    assert "tide_height_m" in out["conditions"]
-    assert out["conditions"]["tide_height_m"] == 0.4
+    assert out["conditions"]["water_level_m"] == 0.42
+    assert out["conditions"]["water_temp_c"] == 14.1
+    assert out["conditions"]["surface_pressure_hpa"] == 1015.3
+    assert out["conditions"]["air_temperature_c"] == 13.2
+    assert out["conditions"]["moon_phase"] == 0.26
     assert out["conditions_stale"] is False
-    assert out["data_age_seconds"] is not None and out["data_age_seconds"] < 120
+    assert out["data_age_seconds"] is not None and out["data_age_seconds"] < 600
     assert out["ml_score"] == pytest.approx(0.78)
     assert out["shap_top3"] is not None
     assert len(out["shap_top3"]) == 3
@@ -241,6 +279,16 @@ async def test_data_fetcher_stale_flag(
                     "rp": '{"features": {"tide_height_m": 0.1}}',
                 },
             )
+            # Stale tidal observation — drives the conditions_stale flag now
+            # that conditions are read from raw tables rather than ActivityScore.
+            conn.execute(
+                sa.text(
+                    "INSERT INTO tidal_observations "
+                    "(station_id, time, water_level_m, raw_payload) "
+                    "VALUES ('STALE_STN', :t, 0.1, CAST('{}' AS JSONB))"
+                ),
+                {"t": datetime.now(timezone.utc) - timedelta(minutes=60)},
+            )
 
         reset_for_test([
             {"id": spot_id, "name": "Stale Spot", "lat": 40.0, "lon": -74.0},
@@ -256,6 +304,7 @@ async def test_data_fetcher_stale_flag(
     finally:
         with engine.begin() as conn:
             conn.execute(sa.text("DELETE FROM activity_scores"))
+            conn.execute(sa.text("DELETE FROM tidal_observations"))
             conn.execute(sa.text("DELETE FROM fishing_spots"))
             conn.execute(sa.text("DELETE FROM noaa_stations"))
         engine.dispose()
