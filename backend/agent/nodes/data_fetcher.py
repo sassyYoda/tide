@@ -312,9 +312,12 @@ async def _topn_fallback(
 ) -> int | None:
     """Top-scored spot id for the species (D-05.3 no-pin fallback).
 
-    Picks the highest-scoring spot in the most recent activity_scores window.
+    Primary path: highest-scoring spot in the most recent ``activity_scores``
+    window. When no model has been promoted (Phase 2 M-08/M-09 deferred),
+    ``activity_scores`` is empty; fall back to any ``fishing_spots`` row that
+    lists the species, ordered by ``spot_id`` so the choice is deterministic.
     """
-    from db.models import ActivityScore
+    from db.models import ActivityScore, FishingSpot
 
     stmt = select(ActivityScore.spot_id, ActivityScore.score).order_by(
         desc(ActivityScore.score)
@@ -323,10 +326,18 @@ async def _topn_fallback(
         stmt = stmt.where(ActivityScore.species == species)
     stmt = stmt.limit(n)
     rows = (await session.execute(stmt)).all()
-    if not rows:
+    if rows:
+        return int(rows[0][0])
+
+    # Pre-promotion fallback — pick a deterministic spot that lists the species.
+    spot_stmt = select(FishingSpot.spot_id).order_by(FishingSpot.spot_id)
+    if species:
+        spot_stmt = spot_stmt.where(FishingSpot.species.any(species))
+    spot_stmt = spot_stmt.limit(1)
+    spot_row = (await session.execute(spot_stmt)).first()
+    if spot_row is None:
         return None
-    # rows is a list of Row objects; first column is spot_id.
-    return int(rows[0][0])
+    return int(spot_row[0])
 
 
 async def _fresh_score_one_spot(
