@@ -38,6 +38,7 @@ Intent = Literal[
     "fishing-recommendation",
     "comparison",
     "best-of-all",
+    "best-of-week",
     "definition",
     "out-of-scope",
 ]
@@ -96,6 +97,13 @@ class TideAgentState(TypedDict, total=False):
     # ``spot_id``/``spot_name`` on the top level is the synthesizer's
     # primary recommendation (heuristic pick — see data_fetcher).
     candidate_spots: list[dict[str, Any]] | None
+    # best-of-week intent: the ranked 7-day forecast sweep. Each entry:
+    # {spot_id, spot_name, station_id, when (ISO str), solunar_quality, score,
+    #  tide_level_m, tide_hi_lo, wind_speed_ms, precip_prob_pct, cloud_cover_pct}.
+    # Top-ranked (week_optimal[0]) is also surfaced as the canonical spot/
+    # conditions for the SSE payload. The score is a heuristic fishability
+    # proxy (NOT an ML prediction) — see data_fetcher._score_slot.
+    week_optimal: list[dict[str, Any]] | None
     data_fetcher_latency_ms: float
 
     # ─── RAG Retriever output ──────────────────────────────────────────

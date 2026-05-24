@@ -36,6 +36,7 @@ import logging
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import desc, select, text
 
@@ -46,6 +47,178 @@ log = logging.getLogger(__name__)
 
 FRESHNESS_THRESHOLD = timedelta(minutes=35)
 TOP_N_FALLBACK = 3
+
+# best-of-week sweep horizon + per-species candidate cap.
+_WEEK_HORIZON = timedelta(days=7)
+_WEEK_CANDIDATE_LIMIT = 8
+_WEEK_TOP_N = 5
+_NJ_TZ = ZoneInfo("America/New_York")
+
+
+def _score_slot(
+    quality_score: float | None,
+    local_hour: int,
+    wind_speed_ms: float | None,
+    precip_prob_pct: float | None,
+) -> float:
+    """Heuristic fishability proxy for a single forecast hour (NOT ML).
+
+    This is an explicitly rules-based stand-in for the per-species XGBoost
+    activity model. No model has been promoted (M-08/M-09 deferred to v1.x),
+    so best-of-week ranks future hours with this transparent heuristic. A
+    future ML-promotion phase should swap this for ``ml.model.score_one`` so
+    the sweep ranks by calibrated probability instead.
+
+    Inputs:
+    - ``quality_score``: 0..1 solunar quality (the dominant term).
+    - ``local_hour``: America/New_York hour-of-day (for the low-light bonus).
+    - ``wind_speed_ms`` / ``precip_prob_pct``: forecast weather (may be None).
+
+    Returns a non-negative score (clamped at 0).
+    """
+    score = float(quality_score) if quality_score is not None else 0.0
+    # Prime low-light feeding windows (dawn 5-8, dusk 17-20 local).
+    if local_hour in (5, 6, 7, 8) or local_hour in (17, 18, 19, 20):
+        score += 0.10
+    # Wind penalty — chop kills the bite and shore access.
+    if wind_speed_ms is not None:
+        if wind_speed_ms > 12:
+            score -= 0.30
+        elif wind_speed_ms > 8:
+            score -= 0.15
+    # Heavy-precip penalty.
+    if precip_prob_pct is not None and precip_prob_pct > 60:
+        score -= 0.15
+    return max(0.0, score)
+
+
+async def _sweep_week_for_spot(
+    session: Any,
+    cand: dict[str, Any],
+    *,
+    now: datetime,
+    horizon_end: datetime,
+) -> dict[str, Any] | None:
+    """Sweep a single spot's next-7-days forecast and return its best slot.
+
+    One solunar query for the window, one weather-forecast query (loaded into
+    an hour-keyed dict), one tide-forecast query (also hour-keyed). Then score
+    each solunar hour in Python. Returns the best-scoring slot as a
+    ``week_optimal`` entry dict, or ``None`` when no solunar rows exist.
+    """
+    sid = cand.get("station_id")
+    if not sid:
+        return None
+
+    sol_rows = (
+        await session.execute(
+            text(
+                "SELECT time, quality_score FROM solunar_values "
+                "WHERE station_id = :sid AND time BETWEEN :lo AND :hi "
+                "ORDER BY time"
+            ),
+            {"sid": sid, "lo": now, "hi": horizon_end},
+        )
+    ).mappings().all()
+    if not sol_rows:
+        return None
+
+    # Weather forecast rows for the window, keyed by truncated hour.
+    wx_rows = (
+        await session.execute(
+            text(
+                "SELECT time, wind_speed_ms, precipitation_prob_pct, "
+                "cloud_cover_pct FROM weather_observations "
+                "WHERE station_id = :sid AND is_forecast = TRUE "
+                "  AND time BETWEEN :lo AND :hi"
+            ),
+            {"sid": sid, "lo": now, "hi": horizon_end},
+        )
+    ).mappings().all()
+    wx_by_hour: dict[datetime, Any] = {}
+    for w in wx_rows:
+        t = _normalize_to_utc(w["time"]).replace(minute=0, second=0, microsecond=0)
+        wx_by_hour[t] = w
+
+    # Tide forecast rows for the window, keyed by truncated hour (most-recently
+    # issued prediction wins per hour).
+    tide_rows = (
+        await session.execute(
+            text(
+                "SELECT target_time, predicted_level_m, hi_lo, issued_at "
+                "FROM noaa_harmonic_forecasts "
+                "WHERE station_id = :sid AND target_time BETWEEN :lo AND :hi "
+                "ORDER BY issued_at ASC"
+            ),
+            {"sid": sid, "lo": now, "hi": horizon_end},
+        )
+    ).mappings().all()
+    tide_by_hour: dict[datetime, Any] = {}
+    for tr in tide_rows:
+        t = _normalize_to_utc(tr["target_time"]).replace(
+            minute=0, second=0, microsecond=0
+        )
+        tide_by_hour[t] = tr  # later issued_at overwrites (ORDER BY ASC)
+
+    best: dict[str, Any] | None = None
+    for s in sol_rows:
+        when = _normalize_to_utc(s["time"])
+        hour_key = when.replace(minute=0, second=0, microsecond=0)
+        local_hour = when.astimezone(_NJ_TZ).hour
+        wx = wx_by_hour.get(hour_key)
+        wind = wx["wind_speed_ms"] if wx else None
+        precip = wx["precipitation_prob_pct"] if wx else None
+        cloud = wx["cloud_cover_pct"] if wx else None
+        tide = tide_by_hour.get(hour_key)
+        tide_level = tide["predicted_level_m"] if tide else None
+        tide_hi_lo = tide["hi_lo"] if tide else None
+
+        score = _score_slot(s["quality_score"], local_hour, wind, precip)
+        slot = {
+            "spot_id": cand["spot_id"],
+            "spot_name": cand["spot_name"],
+            "station_id": sid,
+            "when": when.isoformat(),
+            "solunar_quality": s["quality_score"],
+            "score": score,
+            "tide_level_m": tide_level,
+            "tide_hi_lo": tide_hi_lo,
+            "wind_speed_ms": wind,
+            "precip_prob_pct": precip,
+            "cloud_cover_pct": cloud,
+            # Carry lat/lon for the canonical pick.
+            "lat": cand.get("lat"),
+            "lon": cand.get("lon"),
+        }
+        if best is None or score > best["score"]:
+            best = slot
+    return best
+
+
+async def _sweep_week(
+    session: Any, species: str | None,
+) -> list[dict[str, Any]]:
+    """Run the best-of-week sweep across all candidate spots for the species.
+
+    Returns the top ``_WEEK_TOP_N`` slots (best slot per spot), sorted by
+    score DESC. Empty list when no candidates or no solunar rows in window.
+    """
+    candidates = await _load_candidate_spots_by_species(
+        session, species, limit=_WEEK_CANDIDATE_LIMIT,
+    )
+    if not candidates:
+        return []
+    now = datetime.now(tz=timezone.utc)
+    horizon_end = now + _WEEK_HORIZON
+    slots: list[dict[str, Any]] = []
+    for cand in candidates:
+        best = await _sweep_week_for_spot(
+            session, cand, now=now, horizon_end=horizon_end,
+        )
+        if best is not None:
+            slots.append(best)
+    slots.sort(key=lambda s: s["score"], reverse=True)
+    return slots[:_WEEK_TOP_N]
 
 # Whitelist of conditions fields surfaced to the SSE wire (T-03-02-03):
 # the raw ``raw_payload['features']`` jsonb has ~45 columns; we expose a
@@ -638,6 +811,7 @@ async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
             "shap_top3": None,
             "data_age_seconds": None,
             "candidate_spots": None,
+            "week_optimal": None,
             "data_fetcher_latency_ms": (time.perf_counter() - t0) * 1000,
         }
 
@@ -673,9 +847,57 @@ async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
         "shap_top3": None,
         "data_age_seconds": None,
         "candidate_spots": None,
+        "week_optimal": None,
     }
 
     async with async_session_factory() as session:
+        # ── best-of-week: sweep the 7-day forecast across all candidates ──
+        if intent == "best-of-week":
+            week_optimal = await _sweep_week(session, species)
+            if week_optimal:
+                winner = week_optimal[0]
+                update["week_optimal"] = week_optimal
+                update["spot_id"] = winner["spot_id"]
+                update["spot_name"] = winner["spot_name"]
+                update["spot_lat"] = winner.get("lat")
+                update["spot_lon"] = winner.get("lon")
+                # Build a conditions dict from the winning forecast slot so
+                # downstream confidence + rendering see grounded values.
+                conds: dict[str, Any] = {
+                    "water_level_m": winner.get("tide_level_m"),
+                    "solunar_quality_score": winner.get("solunar_quality"),
+                    "wind_speed_ms": winner.get("wind_speed_ms"),
+                    "precipitation_prob_pct": winner.get("precip_prob_pct"),
+                    "cloud_cover_pct": winner.get("cloud_cover_pct"),
+                    "_forecast_for": winner["when"],
+                }
+                # Drop None entries so the synthesizer doesn't render blanks.
+                update["conditions"] = {
+                    k: v for k, v in conds.items() if v is not None
+                }
+                update["data_age_seconds"] = 0
+                update["conditions_stale"] = False
+                # ML best-effort on the winning spot (no model promoted at MVP).
+                if species:
+                    score_row = await _read_latest_activity_score(
+                        session, winner["spot_id"], species,
+                    )
+                    if score_row["score"] is not None:
+                        update["ml_score"] = score_row["score"]
+                        update["shap_top3"] = score_row["shap_top3"]
+                        update["ml_score_available"] = True
+                update["data_fetcher_latency_ms"] = (
+                    (time.perf_counter() - t0) * 1000
+                )
+                return update
+            # No candidates / no solunar rows in window: fall through to the
+            # existing best-of-all behavior (don't crash, don't fabricate).
+            log.info(
+                "data_fetcher: best-of-week sweep empty for species=%s; "
+                "falling back to best-of-all", species,
+            )
+            intent = "best-of-all"
+
         # ── Multi-spot intents resolve candidates first ──────────────────
         candidates: list[dict[str, Any]] = []
         if intent == "comparison":
@@ -826,6 +1048,7 @@ __all__ = [
     "FRESHNESS_THRESHOLD",
     "TOP_N_FALLBACK",
     "data_fetcher_node",
+    "_score_slot",
     "_read_latest_activity_score",
     "_topn_fallback",
     "_fresh_score_one_spot",

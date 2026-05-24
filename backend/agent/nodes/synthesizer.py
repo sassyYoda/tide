@@ -40,6 +40,7 @@ import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import anthropic
 import httpx
@@ -166,6 +167,14 @@ RULES (binding):
         forecast water_level_m and adjacent rows (if implied by the data) —
         but do NOT invent next high/low timings from a single water_level
         value.
+14. WEEK-AHEAD handling: When a "Week-ahead optimal windows" block is present,
+    recommend THE single top-ranked (spot, day, time) as the answer to "when
+    and where". State the day, the local time window, and the spot explicitly.
+    Cite the real forecast values from the block — solunar quality, tide,
+    wind. Then list 2-3 runner-up windows briefly. NEVER invent a day or time
+    outside the provided block: the forecast data only extends 7 days out, so
+    do NOT name dates beyond it. The "score" is a heuristic fishability proxy,
+    NOT an ML prediction — do not present it as a probability or catch rate.
 """
 
 
@@ -347,6 +356,45 @@ def _render_conditions_block(conditions: dict[str, Any] | None) -> list[str]:
     return out
 
 
+_NJ_TZ = ZoneInfo("America/New_York")
+
+
+def _format_week_slot(slot: dict[str, Any]) -> str:
+    """Render one best-of-week slot as a single human-readable line.
+
+    Converts the UTC ``when`` ISO string to America/New_York so the angler
+    reads local time. Forecast values (solunar / tide / wind / precip) are
+    cited from the slot verbatim. ``score`` is a heuristic fishability proxy.
+    """
+    name = slot.get("spot_name") or "(unnamed spot)"
+    when_raw = slot.get("when")
+    when_str = str(when_raw)
+    if when_raw:
+        try:
+            dt = datetime.fromisoformat(str(when_raw).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            local = dt.astimezone(_NJ_TZ)
+            # e.g. "Sat May 30, 6 AM EDT"
+            when_str = local.strftime("%a %b %-d, %-I %p %Z")
+        except (ValueError, TypeError):
+            when_str = str(when_raw)
+
+    def _num(v: Any, fmt: str) -> str:
+        return format(v, fmt) if isinstance(v, (int, float)) else "n/a"
+
+    q = _num(slot.get("solunar_quality"), ".2f")
+    tide_level = _num(slot.get("tide_level_m"), ".2f")
+    tide_hi_lo = slot.get("tide_hi_lo") or ""
+    wind = _num(slot.get("wind_speed_ms"), ".1f")
+    precip = _num(slot.get("precip_prob_pct"), ".0f")
+    score = _num(slot.get("score"), ".2f")
+    return (
+        f"{name} — {when_str} — solunar {q}, tide {tide_level}m {tide_hi_lo}, "
+        f"wind {wind} m/s, precip {precip}%, score {score}"
+    )
+
+
 def _format_user_message(state: TideAgentState) -> str:
     """Render conditions + score + RAG chunks + query into the HumanMessage body.
 
@@ -396,6 +444,17 @@ def _format_user_message(state: TideAgentState) -> str:
     parts = []
     parts.append(f"User question: {state.get('query', '(no query)')}")
     parts.append("")
+
+    # ─── best-of-week: render the ranked 7-day forecast sweep ──────────
+    week_optimal: list[dict[str, Any]] = state.get("week_optimal") or []
+    if week_optimal:
+        parts.append(
+            "Week-ahead optimal windows (ranked by fishability score; "
+            "forecast data):"
+        )
+        for i, slot in enumerate(week_optimal, start=1):
+            parts.append(f"  {i}. {_format_week_slot(slot)}")
+        parts.append("")
 
     candidate_spots = state.get("candidate_spots") or []
     multi_spot = intent in ("comparison", "best-of-all") and len(candidate_spots) >= 1
@@ -633,9 +692,19 @@ def _compute_confidence(state: TideAgentState) -> ConfidenceLabel:
 
     conditions = state.get("conditions") or {}
     candidate_spots = state.get("candidate_spots") or []
+    week_optimal = state.get("week_optimal") or []
     has_any_conditions = bool(conditions) or any(
         bool(cs.get("conditions")) for cs in candidate_spots
     )
+
+    # best-of-week: a populated sweep over fresh forecast data carries its own
+    # Moderate floor — it's grounded in real 7-day forecast values, but has no
+    # ML score and no fishing reports backing the specific (day, time) pick.
+    if intent == "best-of-week" and week_optimal and not state.get(
+        "conditions_stale", False
+    ):
+        return "Moderate"
+
     # Hard floor: if we have neither chunks nor candidate_spots AND no
     # conditions data anywhere, there's nothing to ground a recommendation in.
     if not chunks and not candidate_spots and not has_any_conditions:

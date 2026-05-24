@@ -504,6 +504,138 @@ async def test_data_fetcher_beyond_horizon_falls_back_to_latest(
 
 
 @pytest.mark.asyncio
+async def test_data_fetcher_best_of_week_picks_highest_scoring_slot(
+    fetcher_urls, lazy_models, lazy_spots,
+):
+    """best-of-week sweeps 7-day forecast across 2 spots; the spot with the
+    higher solunar quality_score in the window wins, and the canonical
+    ``spot_id`` matches ``week_optimal[0]``.
+    """
+    from agent.nodes.data_fetcher import data_fetcher_node
+    from agent.spot_resolver import reset_for_test
+
+    sync_url = fetcher_urls["sync_url"]
+    engine = sa.create_engine(sync_url)
+    now = datetime.now(timezone.utc)
+    # Midday UTC slot to avoid the dawn/dusk low-light bonus skewing the test.
+    slot_a = (now + timedelta(days=2)).replace(
+        hour=17, minute=0, second=0, microsecond=0
+    )  # ~1 PM EDT — no low-light bonus
+    slot_b = (now + timedelta(days=2)).replace(
+        hour=18, minute=0, second=0, microsecond=0
+    )
+    try:
+        with engine.begin() as conn:
+            conn.execute(sa.text("DELETE FROM activity_scores"))
+            conn.execute(sa.text("DELETE FROM weather_observations"))
+            conn.execute(sa.text("DELETE FROM noaa_harmonic_forecasts"))
+            conn.execute(sa.text("DELETE FROM solunar_values"))
+            conn.execute(sa.text("DELETE FROM fishing_spots"))
+            conn.execute(sa.text("DELETE FROM noaa_stations"))
+            for sid, lat, lon in (
+                ("BOW_STN_A", 39.5, -74.4),
+                ("BOW_STN_B", 39.6, -74.5),
+            ):
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO noaa_stations "
+                        "(station_id, name, lat, lon, products, source_url) "
+                        "VALUES (:sid, :sid, :lat, :lon, :p, 'https://test')"
+                    ),
+                    {"sid": sid, "lat": lat, "lon": lon, "p": ["water_level"]},
+                )
+            row_a = conn.execute(
+                sa.text(
+                    "INSERT INTO fishing_spots "
+                    "(name, lat, lon, water_body, spot_type, species, "
+                    "nearest_station, access_type) "
+                    "VALUES ('Spot A', 39.5, -74.4, 'Test', 'jetty', "
+                    "ARRAY['striper'], 'BOW_STN_A', 'shore') RETURNING spot_id"
+                ),
+            ).first()
+            row_b = conn.execute(
+                sa.text(
+                    "INSERT INTO fishing_spots "
+                    "(name, lat, lon, water_body, spot_type, species, "
+                    "nearest_station, access_type) "
+                    "VALUES ('Spot B', 39.6, -74.5, 'Test', 'jetty', "
+                    "ARRAY['striper'], 'BOW_STN_B', 'shore') RETURNING spot_id"
+                ),
+            ).first()
+            spot_a, spot_b = int(row_a[0]), int(row_b[0])
+            # Spot A: HIGH solunar quality. Spot B: low.
+            conn.execute(
+                sa.text(
+                    "INSERT INTO solunar_values "
+                    "(station_id, time, moon_phase, moon_phase_sin, "
+                    "moon_phase_cos, illumination, lunar_day, quality_score) "
+                    "VALUES ('BOW_STN_A', :t, 0.3, 0.9, 0.1, 0.6, 7.0, 0.92)"
+                ),
+                {"t": slot_a},
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO solunar_values "
+                    "(station_id, time, moon_phase, moon_phase_sin, "
+                    "moon_phase_cos, illumination, lunar_day, quality_score) "
+                    "VALUES ('BOW_STN_B', :t, 0.3, 0.9, 0.1, 0.6, 7.0, 0.40)"
+                ),
+                {"t": slot_b},
+            )
+            # Calm forecast weather for both (no penalties).
+            for sid, t in (("BOW_STN_A", slot_a), ("BOW_STN_B", slot_b)):
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO weather_observations "
+                        "(station_id, time, is_forecast, wind_speed_ms, "
+                        "wind_dir_deg, precipitation_prob_pct, cloud_cover_pct, "
+                        "raw_payload) "
+                        "VALUES (:sid, :t, TRUE, 3.0, 90, 5.0, 20.0, "
+                        "CAST('{}' AS JSONB))"
+                    ),
+                    {"sid": sid, "t": t},
+                )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO noaa_harmonic_forecasts "
+                    "(station_id, issued_at, target_time, predicted_level_m, "
+                    "hi_lo, raw_payload) "
+                    "VALUES ('BOW_STN_A', :iss, :t, 0.55, 'H', "
+                    "CAST('{}' AS JSONB))"
+                ),
+                {"iss": now, "t": slot_a},
+            )
+
+        reset_for_test([
+            {"id": spot_a, "name": "Spot A", "lat": 39.5, "lon": -74.4},
+            {"id": spot_b, "name": "Spot B", "lat": 39.6, "lon": -74.5},
+        ])
+
+        out = await data_fetcher_node({
+            "query": "when should I fish for striper this week",
+            "intent": "best-of-week",
+            "species_canonical": "striper",
+        })
+
+        assert out["week_optimal"], "expected a non-empty sweep"
+        assert out["week_optimal"][0]["spot_id"] == spot_a
+        assert out["week_optimal"][0]["solunar_quality"] == pytest.approx(0.92)
+        assert out["spot_id"] == spot_a
+        assert out["conditions"] is not None
+        assert "_forecast_for" in out["conditions"]
+        assert out["conditions_stale"] is False
+        assert out["data_age_seconds"] == 0
+    finally:
+        with engine.begin() as conn:
+            conn.execute(sa.text("DELETE FROM weather_observations"))
+            conn.execute(sa.text("DELETE FROM noaa_harmonic_forecasts"))
+            conn.execute(sa.text("DELETE FROM solunar_values"))
+            conn.execute(sa.text("DELETE FROM fishing_spots"))
+            conn.execute(sa.text("DELETE FROM noaa_stations"))
+        engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_xgb_under_50ms(lazy_models):
     """P-06: XGBoost inference per call ≤ 50 ms.
 

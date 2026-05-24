@@ -442,6 +442,101 @@ def test_format_user_message_no_forecast_falls_back_to_legacy_block():
     assert "surface_pressure_hpa: 1028.2" in user_text
 
 
+# ─── best-of-week rendering + confidence ────────────────────────────────
+
+
+def test_format_user_message_renders_week_ahead_block():
+    """intent=best-of-week with a week_optimal list renders the ranked block
+    with the top spot name and a local-time string (UTC → America/New_York).
+    """
+    from agent.nodes.synthesizer import _format_user_message
+
+    # 2026-05-30T10:00:00Z = 6 AM EDT (America/New_York, UTC-4 in summer).
+    state = {
+        "intent": "best-of-week",
+        "query": "when and where for striper this week",
+        "species_canonical": "striper",
+        "week_optimal": [
+            {
+                "spot_id": 7,
+                "spot_name": "Barnegat Inlet",
+                "station_id": "S1",
+                "when": "2026-05-30T10:00:00+00:00",
+                "solunar_quality": 0.88,
+                "score": 0.98,
+                "tide_level_m": 0.42,
+                "tide_hi_lo": "H",
+                "wind_speed_ms": 3.1,
+                "precip_prob_pct": 5.0,
+                "cloud_cover_pct": 20.0,
+            },
+            {
+                "spot_id": 9,
+                "spot_name": "Manasquan Inlet",
+                "station_id": "S2",
+                "when": "2026-05-31T22:00:00+00:00",
+                "solunar_quality": 0.71,
+                "score": 0.81,
+                "tide_level_m": 0.9,
+                "tide_hi_lo": "L",
+                "wind_speed_ms": 6.0,
+                "precip_prob_pct": 10.0,
+                "cloud_cover_pct": 40.0,
+            },
+        ],
+        "conditions": {
+            "water_level_m": 0.42,
+            "solunar_quality_score": 0.88,
+            "_forecast_for": "2026-05-30T10:00:00+00:00",
+        },
+        "chunks": [],
+        "retrieval_ok": True,
+        "conditions_stale": False,
+    }
+    user_text = _format_user_message(state)
+    assert "Week-ahead optimal windows" in user_text
+    assert "Barnegat Inlet" in user_text
+    assert "Manasquan Inlet" in user_text
+    # Local-time conversion: 10:00 UTC → 6 AM EDT.
+    assert "6 AM" in user_text
+    # Forecast values cited verbatim.
+    assert "solunar 0.88" in user_text
+    assert "score 0.98" in user_text
+
+
+def test_confidence_moderate_on_best_of_week_with_fresh_sweep():
+    """best-of-week + populated week_optimal + fresh forecast → Moderate."""
+    from agent.nodes.synthesizer import _compute_confidence
+
+    state = {
+        "intent": "best-of-week",
+        "chunks": [],
+        "week_optimal": [
+            {"spot_name": "Barnegat", "score": 0.9, "when": "2026-05-30T10:00:00+00:00"},
+        ],
+        "conditions": {"solunar_quality_score": 0.88},
+        "retrieval_ok": True,
+        "conditions_stale": False,
+    }
+    assert _compute_confidence(state) == "Moderate"
+
+
+def test_score_slot_heuristic():
+    """Low-light bonus applied; wind + precip penalties applied; clamped ≥0."""
+    from agent.nodes.data_fetcher import _score_slot
+
+    # 6 AM local, calm, dry → base + 0.10 low-light bonus.
+    assert _score_slot(0.80, 6, 2.0, 5.0) == pytest.approx(0.90)
+    # Midday, calm → no bonus.
+    assert _score_slot(0.80, 13, 2.0, 5.0) == pytest.approx(0.80)
+    # High wind (>12) penalty -0.30, midday.
+    assert _score_slot(0.80, 13, 15.0, 5.0) == pytest.approx(0.50)
+    # Heavy precip (>60) penalty -0.15, midday moderate wind (>8) -0.15.
+    assert _score_slot(0.80, 13, 9.0, 70.0) == pytest.approx(0.50)
+    # Clamp at 0.
+    assert _score_slot(0.05, 13, 15.0, 70.0) == 0.0
+
+
 # ─── New confidence-ladder tests (Bug 1) ────────────────────────────────
 
 

@@ -201,6 +201,7 @@ class PlannerOutput(BaseModel):
         "fishing-recommendation",
         "comparison",
         "best-of-all",
+        "best-of-week",
         "definition",
         "out-of-scope",
     ]
@@ -297,8 +298,19 @@ def _system_prompt() -> str:
         "  compare_locations_raw. location_hint_raw stays null.\n"
         "- best-of-all: user asks for the BEST spot for a species without "
         "  specifying any location ('where should I fish for striped bass?', "
-        "  'best spot for tautog tomorrow'). location_hint_raw stays null; "
-        "  species_canonical MUST be set.\n"
+        "  'best spot for tautog tomorrow'). This is a WHERE question at "
+        "  roughly-now. location_hint_raw stays null; species_canonical MUST "
+        "  be set.\n"
+        "- best-of-week: user asks WHEN (what day and/or time) to fish over a "
+        "  multi-day FUTURE span without naming one specific day ('when should "
+        "  I fish for striper this week', 'best day and time in the coming "
+        "  week', 'what's the optimal window over the next few days', 'when "
+        "  and where has the most optimal conditions this week'). The key "
+        "  signal is choosing a future day/time across a span (we sweep our "
+        "  7-day forecast). Distinguish from best-of-all, which is WHERE at "
+        "  roughly-now. species_canonical SHOULD be set; location_hint_raw "
+        "  stays null (we always sweep all candidate spots for the species — "
+        "  ignore any named location for best-of-week).\n"
         "- definition: user asks WHAT a fishing term/technique/rig/bait/gear is "
         "  or how to use it ('what's the snafu rig', 'how do you fish a "
         "  bucktail', 'tell me about chunking bunker', 'what's chumming'). "
