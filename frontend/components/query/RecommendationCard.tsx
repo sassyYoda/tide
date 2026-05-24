@@ -24,8 +24,11 @@ interface Props {
  *
  * Returns false for citations with null/missing dates, since L-13 demands
  * "recent local reports" — undated citations cannot prove recency.
+ *
+ * Exported so other components can compute it without re-implementing the
+ * window in two places.
  */
-function isFreshCitation(c: CitationOut): boolean {
+export function isFreshCitation(c: CitationOut): boolean {
   if (!c.date) return false
   const t = new Date(c.date).getTime()
   if (Number.isNaN(t)) return false
@@ -36,16 +39,28 @@ function isFreshCitation(c: CitationOut): boolean {
 export function RecommendationCard({ recommendation, partial }: Props) {
   const rec = recommendation
 
-  // F-16 / L-13 empty-state branch (per CONTEXT.md L-13: "fewer than 2 FRESH
-  // reports back the recommendation"). NOT a raw citations.length check — a
-  // 3-citation set where every entry is months stale is still empty-state
-  // territory because L-13's promise is RECENT local intel.
+  // Empty-state branch: show "No solid lead" ONLY when the backend gave us
+  // genuinely nothing to work with. The synthesizer already self-caveats
+  // ("Limited recent local reports — recommendation based on conditions
+  // only" / "No recent or seasonal reports available — recommendation
+  // grounded in conditions only") via its three-tier freshness ladder, so
+  // hiding its text entirely just because <2 reports are <14d old throws
+  // away a perfectly usable conditions-grounded answer. Confidence: Low
+  // surfaces through the badge regardless.
   //
-  // Triggers:
-  //   freshCount < 2                 → not enough recent evidence
-  //   rec.retrieval_ok === false     → backend signaled retrieval failure
-  const freshCount = rec.citations.filter(isFreshCitation).length
-  const showEmpty = freshCount < 2 || rec.retrieval_ok === false
+  // Triggers (any one is sufficient):
+  //   - empty recommendation_text                → synthesizer produced nothing
+  //   - retrieval_ok=false AND no conditions     → both data paths failed
+  //   - spot_id=null AND no conditions AND no rec_text  → planner couldn't
+  //     resolve, no fallback fired, nothing to show
+  const recText = (rec.recommendation_text || "").trim()
+  const conditionsPresent = Boolean(
+    partial?.conditions && Object.keys(partial.conditions).length > 0,
+  )
+  const showEmpty =
+    recText.length === 0 ||
+    (rec.retrieval_ok === false && !conditionsPresent) ||
+    (rec.spot_id == null && !conditionsPresent && recText.length === 0)
   if (showEmpty) {
     return <EmptyState />
   }
