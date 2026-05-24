@@ -50,14 +50,27 @@ def _build_filter(
     location_region: str | None,
     cutoff: datetime,
 ) -> Filter:
+    """Build the Qdrant pre-filter.
+
+    Historical note: a strict ``location_region MatchValue`` filter was
+    applied here when ``location_region`` was non-None. That filter never
+    matched in production — the data_fetcher passes the full FishingSpot
+    name (e.g. "Manasquan Inlet — North Jetty") while the seeded chunks
+    tag ``location_region`` with a normalized slug ("manasquan",
+    "sandy_hook", "ibsp", "unknown"). Different vocabularies → exact
+    MatchValue always misses → 0 citations across every spot-bound query.
+
+    Fix: keep ``location_region`` out of the pre-filter. The dense + sparse
+    vectors already encode location semantics from the chunk text and the
+    metadata-summary prefix prepended at seed time, so retrieval still
+    surfaces spot-relevant chunks via similarity. ``location_region`` stays
+    in the function signature as a future-friendly slot (a soft post-fusion
+    boost would be the natural next iteration) but is otherwise unused.
+    """
     must: list[FieldCondition] = [
         FieldCondition(key="species_mentioned", match=MatchAny(any=[species])),
         FieldCondition(key="date", range=DatetimeRange(gte=cutoff.isoformat())),
     ]
-    if location_region:
-        must.append(
-            FieldCondition(key="location_region", match=MatchValue(value=location_region))
-        )
     return Filter(must=must)
 
 

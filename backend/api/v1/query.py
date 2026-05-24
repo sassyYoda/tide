@@ -57,7 +57,7 @@ from agent.sse_protocol import (
     make_error_payload,
     make_progress_payload,
 )
-from api.middleware.rate_limit import limiter
+from api.middleware.rate_limit import _limit_for_request, limiter
 from app.deps.redis import get_redis
 from cache.query_cache import (
     fast_query_cache_key,
@@ -95,7 +95,7 @@ class QueryBody(BaseModel):
 
 
 @router.post("/query")
-@limiter.limit("20/hour")
+@limiter.limit(_limit_for_request)
 async def query(
     request: Request,  # required positional for slowapi key_func
     body: QueryBody,

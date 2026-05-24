@@ -10,18 +10,26 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_filter_builder_includes_species_date_and_location():
+async def test_filter_builder_pre_filters_on_species_and_date_only():
+    """The Qdrant pre-filter applies species + date hard cuts but NOT location.
+
+    Historical contract included a strict location_region MatchValue, but in
+    production it never matched (data_fetcher passes spot_name like
+    "Manasquan Inlet — North Jetty" while seeded chunks tag location_region
+    with a slug like "manasquan"). Vectors handle location semantics — the
+    filter only enforces species + recency.
+    """
     from qdrant.retriever import _build_filter
 
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=30)
     f = _build_filter("striper", "barnegat_bay", cutoff)
     keys = {cond.key for cond in f.must}
-    assert keys == {"species_mentioned", "date", "location_region"}
+    assert keys == {"species_mentioned", "date"}
 
 
 @pytest.mark.asyncio
-async def test_filter_builder_omits_location_when_none():
+async def test_filter_builder_ignores_location_when_none():
     from qdrant.retriever import _build_filter
 
     now = datetime.now(timezone.utc)

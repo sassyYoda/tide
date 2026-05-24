@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     langfuse_public_key: str = Field("", alias="LANGFUSE_PUBLIC_KEY")
     langfuse_host: str = Field("https://cloud.langfuse.com", alias="LANGFUSE_HOST")
     rapidfuzz_threshold: int = Field(65, alias="RAPIDFUZZ_THRESHOLD")
+    rate_limit_bypass_token: str | None = Field(
+        default=None,
+        alias="TIDE_RATE_LIMIT_BYPASS_TOKEN",
+        description=(
+            "When a request includes header `X-Tide-Test-Token` matching this "
+            "value, slowapi's 20/IP/hour limit is skipped. Operator-only escape "
+            "hatch for prod testing. Null in dev disables the bypass entirely."
+        ),
+    )
 
 
 settings = Settings()  # import-time instantiation; fails fast on missing required env
