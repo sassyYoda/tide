@@ -223,17 +223,11 @@ of stale `degraded` responses (Pitfall P3).
 
 ## Further reading
 
-For future GSD sessions and deep-dive context:
-
-- [`CLAUDE.md`](CLAUDE.md) — Entry point for future Claude Code sessions
-- [`.planning/PROJECT.md`](.planning/PROJECT.md) — Locked decisions, constraints (gitignored)
-- [`.planning/ROADMAP.md`](.planning/ROADMAP.md) — 6-phase build sequence (gitignored)
-- [`.planning/REQUIREMENTS.md`](.planning/REQUIREMENTS.md) — 120 v1 REQ-IDs + traceability (gitignored)
-- [`.planning/phases/06-infrastructure-launch/`](.planning/phases/06-infrastructure-launch/) — Phase 6 plans + summaries (gitignored)
-
-The `.planning/` directory is gitignored (local-only); the slash commands
-`/gsd-progress`, `/gsd-plan-phase`, `/gsd-execute-phase`, `/gsd-next` drive
-the workflow from `CLAUDE.md` and the planning artifacts.
+The project planning artifacts (decisions, roadmap, requirements, per-phase
+plans + summaries) live in a `.planning/` directory that is gitignored —
+they are kept local to the working copy and not published with the public
+source. Build and runtime behavior is fully captured by the code in this
+repository.
 
 ## License
 

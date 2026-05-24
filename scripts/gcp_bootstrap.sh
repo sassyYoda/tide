@@ -2,11 +2,11 @@
 # Phase 6 — GCP project bootstrap (Pitfall P13 — budget alerts mandatory).
 # Idempotent: re-running is safe. Run as a user with billing.admin on a billing account.
 #
-# DEFERRED TO USER: this script is fully authored but NOT executed by the agent.
-# Claude cannot create a GCP project for the user. The user MUST run this once
-# (with the env vars below exported) when they are ready to provision the Tide
-# GCP environment. See .planning/phases/06-infrastructure-launch/06-01-SUMMARY.md
-# for the resume signal.
+# DEFERRED TO USER: this script is fully authored but cannot be fully automated.
+# Creating a GCP project + binding a billing account requires the project owner's
+# console/CLI session — there is no service-account path for first-time project
+# creation. The user MUST run this once (with the env vars below exported) when
+# they are ready to provision the Tide GCP environment.
 set -euo pipefail
 
 PROJECT_ID="${GCP_PROJECT_ID:-tide-mvp}"

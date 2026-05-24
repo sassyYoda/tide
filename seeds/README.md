@@ -44,7 +44,7 @@ All IDs in RESEARCH.md §NOAA Stations Draft were re-verified against the live C
 
 ## Workflow
 
-1. Claude drafts and verifies products against live metadata + sensors APIs.
+1. Seed drafter generates the candidate list and verifies each row against the live NOAA metadata + sensors APIs.
 2. User reviews lat/lon on the NOAA station page (each `source_url` links directly to sensors.json; lat/lon in this file matches the upstream metadata).
 3. Seed migration 0004 applies via `alembic upgrade head` (Plan 04).
 
@@ -63,4 +63,4 @@ All IDs in RESEARCH.md §NOAA Stations Draft were re-verified against the live C
 
 **Nearest-station assignment strategy:** because the only NJ Atlantic-coast stations with live water-level + water-temperature sensors are Sandy Hook (northern), Atlantic City (mid), and Cape May (southern), most Barnegat Bay interior spots map to `8534720` (Atlantic City — closest great-circle distance) with northern Barnegat Bay spots mapping to `8531680` (Sandy Hook). This is a known MVP simplification.
 
-**Satellite verification:** Claude's first pass uses public satellite imagery via NOAA station pages + general map knowledge. The user spot-check in Task 3 is the authoritative gate — in this run the checkpoint was auto-approved by the orchestrator because `workflow.auto_advance=true`. The first real run of the Plan 04 data migration against live UI is the effective manual verification step.
+**Satellite verification:** The first pass uses public satellite imagery via NOAA station pages + general map knowledge. The user spot-check in Task 3 is the authoritative gate — in this run the checkpoint was auto-approved by the orchestrator because `workflow.auto_advance=true`. The first real run of the Plan 04 data migration against live UI is the effective manual verification step.

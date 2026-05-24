@@ -224,7 +224,7 @@ data/showcase_traces.json
 data/stripersonline_titles.txt
 data/model_registry_report.json
 
-# Claude Code worktree state (per-session, not version-controlled)
+# Agent worktree state (per-session, not version-controlled)
 .claude/
 
 # Planning artifacts (GSD workflow — local-only, not pushed to public remote)
