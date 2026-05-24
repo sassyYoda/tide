@@ -121,8 +121,13 @@ async def _fetch_product(
     if product == "predictions":
         params["interval"] = "h"
         params["datum"] = "MLLW"
-        params["date"] = "today"
-        params["range"] = "168"
+        # NOAA CO-OPS: `date=today` is mutually exclusive with a multi-day
+        # `range` — passing both silently caps the response to today. To get
+        # a 7-day hourly harmonic forecast we anchor on an explicit
+        # `begin_date` (today, GMT) plus `range` in hours. `begin_date` +
+        # `range` is the documented combination for forward windows.
+        params["begin_date"] = datetime.now(timezone.utc).strftime("%Y%m%d")
+        params["range"] = "168"  # 24h × 7d
     else:
         params["date"] = "latest"
     if extra_params:
