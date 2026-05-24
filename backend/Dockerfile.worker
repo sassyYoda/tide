@@ -24,6 +24,7 @@ RUN uv sync --frozen --no-dev \
 
 COPY --chown=app:app . .
 
+RUN chmod +x /app/start-cloudrun.sh
 USER app
 ENV PYTHONPATH=/app \
     UV_CACHE_DIR=/home/app/.cache/uv

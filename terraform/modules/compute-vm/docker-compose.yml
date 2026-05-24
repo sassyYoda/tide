@@ -23,7 +23,7 @@ services:
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     secrets:
       - db_password
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["0.0.0.0:5432:5432"]
     mem_limit: 450m
     memswap_limit: 1500m
     restart: unless-stopped
@@ -39,12 +39,11 @@ services:
     environment:
       QDRANT__SERVICE__GRPC_PORT: '6334'
       QDRANT__SERVICE__HTTP_PORT: '6333'
-      QDRANT__STORAGE__OPTIMIZERS__INDEXING_THRESHOLD: 20000
     volumes:
       - qdrant-data:/qdrant/storage
     ports:
-      - "127.0.0.1:6333:6333"
-      - "127.0.0.1:6334:6334"
+      - "0.0.0.0:6333:6333"
+      - "0.0.0.0:6334:6334"
     mem_limit: 250m
     memswap_limit: 1000m
     restart: unless-stopped
@@ -62,7 +61,7 @@ services:
       - ""
       - "--appendonly"
       - "no"
-    ports: ["127.0.0.1:6379:6379"]
+    ports: ["0.0.0.0:6379:6379"]
     mem_limit: 100m
     restart: unless-stopped
 

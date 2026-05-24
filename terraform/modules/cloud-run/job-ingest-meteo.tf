@@ -14,7 +14,7 @@ resource "google_cloud_run_v2_job" "ingest_meteo" {
       max_retries     = 1
 
       vpc_access {
-        egress = "ALL_TRAFFIC"
+        egress = "PRIVATE_RANGES_ONLY"
         network_interfaces { # Pitfall P5 — NEVER `connector =`
           network    = var.vpc_id
           subnetwork = var.subnet_id
@@ -23,7 +23,7 @@ resource "google_cloud_run_v2_job" "ingest_meteo" {
 
       containers {
         image   = "${var.region}-docker.pkg.dev/${var.project_id}/tide/worker:${var.image_tag}"
-        command = ["uv", "run", "python", "-m", "celery_app.entrypoints.ingest_meteo"]
+        command = ["/app/start-cloudrun.sh", "python", "-m", "celery_app.entrypoints.ingest_meteo"]
 
         env {
           name  = "TIDE_INGEST_VIA_CLOUD_RUN_JOBS"

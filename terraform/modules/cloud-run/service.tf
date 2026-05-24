@@ -38,7 +38,7 @@ resource "google_cloud_run_v2_service" "backend" {
     max_instance_request_concurrency = 80
 
     vpc_access {
-      egress = "ALL_TRAFFIC"
+      egress = "PRIVATE_RANGES_ONLY"
       network_interfaces { # Pitfall P5 — NEVER `connector =`
         network    = var.vpc_id
         subnetwork = var.subnet_id
