@@ -30,6 +30,55 @@ log = logging.getLogger(__name__)
 ResolutionStrategy = Literal["fuzzy_name", "haversine", "no_pin", "none"]
 
 
+# Acronym/nickname → canonical-expansion map. Pre-translated through this
+# table before the rapidfuzz match so short-token nicknames (e.g. "IBSP")
+# can resolve to a verbose canonical spot name (e.g. "Island Beach State Park
+# — A7 Pocket") that WRatio with cutoff=settings.rapidfuzz_threshold (65)
+# cannot otherwise reach. Conservative entries only — IBSP is the verified
+# motivating case from the "barnegat inlet vs IBSP for fluke" comparison
+# prompt. Do not invent acronyms.
+_ACRONYM_EXPANSIONS: dict[str, str] = {
+    "ibsp": "Island Beach State Park",
+    "ibspark": "Island Beach State Park",
+    "i.b.s.p.": "Island Beach State Park",
+}
+
+# Punctuation we strip when tokenizing for the acronym lookup. Period is
+# intentionally preserved inside the token (so "i.b.s.p." survives intact
+# as a single token and matches the map key).
+_ACRONYM_TOKEN_SEPARATORS = (",", ";", ":", "!", "?", "(", ")", "[", "]", "/", "\\", '"', "'")
+
+
+def _maybe_expand_acronyms(query: str) -> str:
+    """Replace whole-token acronyms with their canonical expansion.
+
+    Case-insensitive whole-token match only — a free-text query like
+    "IBSP surf in IBSP" expands both tokens; an embedded substring like
+    "myIBSPplan" is left alone. The original casing of non-matching tokens
+    is preserved.
+    """
+    if not query:
+        return query
+    # Normalize punctuation to spaces so tokens split cleanly.
+    work = query
+    for sep in _ACRONYM_TOKEN_SEPARATORS:
+        work = work.replace(sep, " ")
+    tokens = work.split()
+    if not tokens:
+        return query
+    out: list[str] = []
+    changed = False
+    for tok in tokens:
+        key = tok.lower()
+        expansion = _ACRONYM_EXPANSIONS.get(key)
+        if expansion is not None:
+            out.append(expansion)
+            changed = True
+        else:
+            out.append(tok)
+    return " ".join(out) if changed else query
+
+
 @dataclass(frozen=True)
 class ResolvedSpot:
     spot_id: int | None
@@ -127,9 +176,15 @@ def resolve_spot(
 
     # Path 1: fuzzy name
     if query and query.strip():
+        # Pre-translate well-known acronyms/nicknames (e.g. "IBSP" →
+        # "Island Beach State Park") so WRatio with the locked cutoff of
+        # settings.rapidfuzz_threshold (65) can find the canonical spot.
+        # Only the fuzzy-match input is rewritten; the verbatim user query
+        # still goes to other consumers (RAG, logging).
+        expanded = _maybe_expand_acronyms(query.strip())
         names = [s["name"] for s in _SPOTS]
         match = process.extractOne(
-            query.strip(),
+            expanded,
             names,
             scorer=fuzz.WRatio,
             score_cutoff=settings.rapidfuzz_threshold,

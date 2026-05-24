@@ -90,6 +90,7 @@ def test_compute_confidence_high():
     ]
     state = {
         "chunks": chunks,
+        "conditions": {"water_temp_c": 13.8, "wind_speed_ms": 4.2},
         "retrieval_ok": True,
         "conditions_stale": False,
         "ml_score_available": True,
@@ -323,3 +324,137 @@ def test_format_user_message_definition_drops_conditions_block():
     user_text = _format_user_message(state)
     assert "technique/gear definition question" in user_text
     assert "Conditions:" not in user_text
+
+
+# ─── New confidence-ladder tests (Bug 1) ────────────────────────────────
+
+
+def test_confidence_high_when_3_recent_reports_and_fresh():
+    """ML is now an optional booster — 3 recent reports + fresh conditions = High
+    even WITHOUT a promoted ML model. M-08/M-09 are deferred to v1.x so no
+    species currently has ml_score_available=True; the old hard ML gate was
+    bottoming everything out to Low.
+    """
+    from agent.nodes.synthesizer import _compute_confidence
+
+    now = datetime.now(tz=timezone.utc)
+    chunks = [
+        {"date": (now - timedelta(hours=12)).isoformat()},
+        {"date": (now - timedelta(hours=24)).isoformat()},
+        {"date": (now - timedelta(hours=48)).isoformat()},
+    ]
+    state = {
+        "chunks": chunks,
+        "conditions": {"water_temp_c": 13.8, "wind_speed_ms": 4.2},
+        "retrieval_ok": True,
+        "conditions_stale": False,
+        # Intentionally no ML — verifies ML is no longer a hard High requirement
+        "ml_score_available": False,
+    }
+    assert _compute_confidence(state) == "High"
+
+
+def test_confidence_moderate_on_seasonal_tier():
+    """≥3 reports ≤30 days old AND conditions present → Moderate (seasonal tier)."""
+    from agent.nodes.synthesizer import _compute_confidence
+
+    now = datetime.now(tz=timezone.utc)
+    chunks = [
+        {"date": (now - timedelta(days=5)).isoformat()},
+        {"date": (now - timedelta(days=10)).isoformat()},
+        {"date": (now - timedelta(days=20)).isoformat()},
+    ]
+    state = {
+        "chunks": chunks,
+        "conditions": {"water_temp_c": 14.1},
+        "retrieval_ok": True,
+        "conditions_stale": False,
+    }
+    assert _compute_confidence(state) == "Moderate"
+
+
+def test_confidence_moderate_on_comparison_with_two_candidates():
+    """Comparison intent with ≥2 candidate spots having conditions = Moderate
+    floor (comparative reasoning carries its own confidence even without
+    recent reports).
+    """
+    from agent.nodes.synthesizer import _compute_confidence
+
+    state = {
+        "intent": "comparison",
+        "chunks": [],
+        "candidate_spots": [
+            {
+                "spot_id": 10,
+                "spot_name": "Manasquan",
+                "conditions": {"water_temp_c": 13.8, "wind_speed_ms": 4.2},
+            },
+            {
+                "spot_id": 22,
+                "spot_name": "Sandy Hook",
+                "conditions": {"water_temp_c": 12.4, "wind_speed_ms": 7.9},
+            },
+        ],
+        "retrieval_ok": True,
+        "conditions_stale": False,
+    }
+    assert _compute_confidence(state) == "Moderate"
+
+
+def test_confidence_low_when_retrieval_failed():
+    """retrieval_ok=False → Low regardless of everything else."""
+    from agent.nodes.synthesizer import _compute_confidence
+
+    now = datetime.now(tz=timezone.utc)
+    state = {
+        "chunks": [
+            {"date": (now - timedelta(hours=12)).isoformat()},
+            {"date": (now - timedelta(hours=24)).isoformat()},
+            {"date": (now - timedelta(hours=48)).isoformat()},
+        ],
+        "conditions": {"water_temp_c": 13.8},
+        "retrieval_ok": False,
+        "conditions_stale": False,
+        "ml_score_available": True,
+        "ml_score": 0.78,
+    }
+    assert _compute_confidence(state) == "Low"
+
+
+# ─── Species inference test (Bug 2) ─────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_synthesizer_infers_species_when_planner_null(monkeypatch):
+    """When planner left species_canonical=null but the LLM text mentions a
+    species (e.g. "best species to target" path), surface it via the
+    state-update merge so the SSE payload reflects the recommendation.
+    """
+    import agent.nodes.synthesizer as synth_mod
+
+    class _Resp:
+        content = (
+            "Striped Bass migration through Seaside Heights is in full swing "
+            "right now — fish the incoming tide. Confidence: Moderate"
+        )
+
+    class _Stub:
+        async def ainvoke(self, _msgs, **_kw):
+            return _Resp()
+
+    monkeypatch.setattr(synth_mod, "_get_synth_llm", lambda: _Stub())
+
+    state = {
+        "query": "best species to target at seaside heights pier today",
+        "intent": "fishing-recommendation",
+        "species_canonical": None,
+        "spot_id": 5,
+        "spot_name": "Seaside Heights Pier",
+        "conditions": {"water_temp_c": 15.2},
+        "chunks": [],
+        "retrieval_ok": True,
+        "conditions_stale": False,
+        "ml_score_available": False,
+    }
+    out = await synth_mod.synthesizer_node(state)
+    assert out.get("species_canonical") == "striper"

@@ -162,8 +162,25 @@ async def _event_generator(
     fast_key = fast_query_cache_key(body.get("query", ""))
     cached = await get_cached_query(redis, fast_key)
     if cached is not None and cached.get("event") == "recommendation":
-        # Emit a tight progress(synthesizer) so the frontend reducer transitions
-        # through streaming(synthesizer) before the final recommendation arrives.
+        # Replay the full event sequence so the frontend reducer transitions
+        # through every state — partial_conditions (if it was captured) wires
+        # the conditions ribbon, then progress(synthesizer) primes the spinner,
+        # then the cached recommendation finalizes. Without partial_conditions
+        # replay, repeat queries flash blank conditions for the user.
+        yield {
+            "event": "progress",
+            "data": make_progress_payload("data_fetcher").model_dump_json(),
+        }
+        cached_partial = cached.get("partial_conditions_json")
+        if cached_partial:
+            yield {
+                "event": "partial_conditions",
+                "data": cached_partial,
+            }
+        yield {
+            "event": "progress",
+            "data": make_progress_payload("rag_retriever").model_dump_json(),
+        }
         yield {
             "event": "progress",
             "data": make_progress_payload("synthesizer").model_dump_json(),
@@ -177,6 +194,7 @@ async def _event_generator(
         return
 
     final_payload: RecommendationPayload | None = None
+    final_partial_conditions_json: str | None = None
     final_spot_id: int | None = None
     final_species: str | None = None
     final_time_window: str | None = None
@@ -194,6 +212,11 @@ async def _event_generator(
             if ev_type == "partial_conditions":
                 # Capture spot identity for the post-graph cache key (D-02.1).
                 final_spot_id = getattr(payload, "spot_id", None)
+                # Phase 6 follow-up: persist the partial_conditions payload
+                # too so cache-hit replay emits the same conditions ribbon
+                # the cold path does. Without this the frontend conditions
+                # display goes blank on repeat queries.
+                final_partial_conditions_json = payload.model_dump_json()
             elif ev_type == "recommendation":
                 final_payload = payload  # type: ignore[assignment]
                 # HR-01 (Phase 3 code-review): RecommendationPayload now widens
@@ -222,10 +245,17 @@ async def _event_generator(
     # primitive is unsafe here — PYTHONHASHSEED is randomized across processes).
     if final_payload is not None:
         try:
-            cached_value = {
+            cached_value: dict[str, Any] = {
                 "event": "recommendation",
                 "payload": final_payload.model_dump(mode="json"),
             }
+            if final_partial_conditions_json is not None:
+                # Stored as raw JSON so the read-path can emit it without
+                # rehydrating the pydantic model (PartialConditionsPayload's
+                # extra="forbid" would reject any drift on a later code rev).
+                cached_value["partial_conditions_json"] = (
+                    final_partial_conditions_json
+                )
             refined_key = query_cache_key(
                 body.get("query", ""),
                 final_species,

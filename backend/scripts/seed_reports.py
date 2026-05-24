@@ -84,6 +84,7 @@ def chunk_with_metadata(rec: StructuredReport, report_id: int) -> list[tuple[str
             "tide_phase_mentioned": f.tide_phase,
             "catch_quality": f.catch_quality,
             "metadata_summary": summary,
+            "text": chunk_text[:2000],
         }
         out.append((chunk_text, payload))
     return out

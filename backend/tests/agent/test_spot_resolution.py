@@ -107,3 +107,43 @@ def test_inline_single_spot_match(lazy_spots):
     got = resolve_spot("Barnegat")
     assert got.spot_id == 1
     assert got.strategy == "fuzzy_name"
+
+
+def test_resolve_spot_expands_ibsp_acronym(lazy_spots):
+    """Bare 'IBSP' must resolve to Island Beach State Park via acronym expansion.
+
+    Without expansion, rapidfuzz WRatio scores "IBSP" vs
+    "Island Beach State Park — A7 Pocket" well below the locked cutoff of 65.
+    """
+    from agent.spot_resolver import reset_for_test, resolve_spot
+
+    reset_for_test(
+        [{"id": 8, "name": "Island Beach State Park — A7 Pocket", "lat": 39.8, "lon": -74.1}]
+    )
+    got = resolve_spot("IBSP")
+    assert got.spot_id == 8
+    assert got.strategy == "fuzzy_name"
+
+
+def test_resolve_spot_acronym_inside_sentence(lazy_spots):
+    """Whole-token acronym in a free-text sentence still expands and resolves."""
+    from agent.spot_resolver import reset_for_test, resolve_spot
+
+    reset_for_test(
+        [{"id": 8, "name": "Island Beach State Park — A7 Pocket", "lat": 39.8, "lon": -74.1}]
+    )
+    got = resolve_spot("IBSP surf this weekend")
+    assert got.spot_id == 8
+    assert got.strategy == "fuzzy_name"
+
+
+def test_resolve_spot_unknown_token_unchanged(lazy_spots):
+    """An unrecognized token must not be invented into a match."""
+    from agent.spot_resolver import reset_for_test, resolve_spot
+
+    reset_for_test(
+        [{"id": 8, "name": "Island Beach State Park — A7 Pocket", "lat": 39.8, "lon": -74.1}]
+    )
+    got = resolve_spot("XXNotARealAcronym")
+    assert got.spot_id is None
+    assert got.strategy in ("no_pin", "none")

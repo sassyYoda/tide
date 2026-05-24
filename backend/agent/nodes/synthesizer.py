@@ -38,6 +38,7 @@ import logging
 import os
 import re
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import anthropic
@@ -441,49 +442,163 @@ def _extract_citations(text: str, chunks: list[RAGChunk]) -> list[Citation]:
 # ─── Confidence computation (A-06 rule 4 — heuristic, not LLM-judged) ───
 
 
-def _compute_confidence(state: TideAgentState) -> ConfidenceLabel:
-    """Compute confidence label per A-06 rules.
+# Freshness ladder constants — mirrors the system-prompt tiers in rule 4.
+# Current intel: <72h old. Seasonal-pattern intel: 72h–30d. Older: conditions-only.
+_RECENT_CUTOFF = timedelta(hours=72)
+_SEASONAL_CUTOFF = timedelta(days=30)
 
-    High:     ≥3 reports <72h old AND ML score available AND conditions fresh
-    Moderate: ≥2 reports <72h old AND conditions fresh
-    Low:      otherwise (no retrieval, stale conditions, or <2 recent reports)
+
+def _count_reports_by_age(
+    chunks: list[RAGChunk],
+) -> tuple[int, int]:
+    """Return (recent_count, seasonal_count).
+
+    recent_count   = reports dated within the last 72h.
+    seasonal_count = reports dated within the last 30 days (inclusive of recent).
+    """
+    now = datetime.now(tz=timezone.utc)
+    recent_cutoff = now - _RECENT_CUTOFF
+    seasonal_cutoff = now - _SEASONAL_CUTOFF
+    recent = 0
+    seasonal = 0
+    for c in chunks:
+        d = c.get("date")
+        if not d:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(d).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if dt >= recent_cutoff:
+            recent += 1
+            seasonal += 1
+        elif dt >= seasonal_cutoff:
+            seasonal += 1
+    return recent, seasonal
+
+
+def _compute_confidence(state: TideAgentState) -> ConfidenceLabel:
+    """Compute confidence label — conditions-aware per the freshness ladder.
+
+    Mirrors the system-prompt three-tier ladder (rule 4): current intel <72h,
+    seasonal-pattern intel 72h–30d, conditions-only >30d. ML is now an
+    *optional booster*, not a hard High requirement, because v1.x M-08/M-09
+    promotion gates are still deferred and no species currently has a
+    promoted model.
+
+    Definition intent: gets its own tiny rule (≥1 chunk → Moderate, else Low).
+    The system prompt tells the LLM to skip rendering the Confidence line for
+    definitions, but the payload still carries a label.
+
+    High:
+      - ≥3 reports <72h old AND conditions fresh, OR
+      - ≥2 reports <72h old AND conditions fresh AND ML score available
+    Moderate (any of):
+      - ≥2 reports <72h old (regardless of staleness)
+      - ≥1 report <72h old AND conditions fresh
+      - ≥3 reports ≤30 days old AND conditions present (seasonal-pattern tier)
+      - intent in {comparison, best-of-all} AND ≥2 candidate spots with
+        conditions populated AND conditions fresh (comparative reasoning
+        carries its own floor)
+    Low: everything else (retrieval failed, no chunks AND no candidate_spots,
+         or conditions completely missing).
 
     Server-side computation prevents the model from over-confidently declaring
     "High" when the evidence doesn't support it (defense-in-depth — the
     system prompt also instructs the model to declare its own label, but the
     server-side value is what we surface in the SSE payload).
     """
+    intent = state.get("intent")
+    chunks: list[RAGChunk] = state.get("chunks") or []
+
+    # Definition queries: tiny separate ladder. Prompt tells the LLM to skip
+    # rendering the Confidence line, but payload must still carry a label.
+    if intent == "definition":
+        if not state.get("retrieval_ok", True):
+            return "Low"
+        return "Moderate" if len(chunks) >= 1 else "Low"
+
     if not state.get("retrieval_ok", True):
         return "Low"
-    if state.get("conditions_stale", False):
+
+    conditions = state.get("conditions") or {}
+    candidate_spots = state.get("candidate_spots") or []
+    has_any_conditions = bool(conditions) or any(
+        bool(cs.get("conditions")) for cs in candidate_spots
+    )
+    # Hard floor: if we have neither chunks nor candidate_spots AND no
+    # conditions data anywhere, there's nothing to ground a recommendation in.
+    if not chunks and not candidate_spots and not has_any_conditions:
         return "Low"
 
-    chunks = state.get("chunks") or []
-    from datetime import datetime, timedelta, timezone
+    conditions_fresh = not state.get("conditions_stale", False) and has_any_conditions
 
-    cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=72)
-    recent = 0
-    for c in chunks:
-        d = c.get("date")
-        if not d:
-            continue
-        try:
-            dt = datetime.fromisoformat(d.replace("Z", "+00:00"))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            if dt >= cutoff:
-                recent += 1
-        except ValueError:
-            continue
-
+    recent, seasonal = _count_reports_by_age(chunks)
     ml_ok = (
         state.get("ml_score_available", True) and state.get("ml_score") is not None
     )
-    if recent >= 3 and ml_ok:
+
+    # ── High ──
+    if recent >= 3 and conditions_fresh:
         return "High"
+    if recent >= 2 and conditions_fresh and ml_ok:
+        return "High"
+
+    # ── Moderate ──
     if recent >= 2:
         return "Moderate"
+    if recent >= 1 and conditions_fresh:
+        return "Moderate"
+    if seasonal >= 3 and has_any_conditions:
+        return "Moderate"
+    if intent in ("comparison", "best-of-all") and conditions_fresh:
+        candidates_with_conds = sum(
+            1 for cs in candidate_spots if cs.get("conditions")
+        )
+        if candidates_with_conds >= 2:
+            return "Moderate"
+
     return "Low"
+
+
+# ─── Species inference (Bug 2 — surface LLM-picked species when planner null) ──
+
+
+# When the planner returns species_canonical=null (e.g. "best species to target
+# at <spot> today"), the synthesizer's text often infers one from conditions +
+# spot type. Surface that inference into the SSE payload so the frontend can
+# show a species pill that matches the recommendation text.
+_INFERRED_SPECIES_RE = re.compile(
+    r"\b(?:striped bass|striper|fluke|summer flounder|bluefish|weakfish|tautog|blackfish|tog|sea trout)\b",
+    re.IGNORECASE,
+)
+_SPECIES_ALIASES_TO_CANONICAL: dict[str, str] = {
+    "striped bass": "striper",
+    "striper": "striper",
+    "fluke": "fluke",
+    "summer flounder": "fluke",
+    "bluefish": "bluefish",
+    "weakfish": "weakfish",
+    "sea trout": "weakfish",
+    "tautog": "tautog",
+    "blackfish": "tautog",
+    "tog": "tautog",
+}
+
+
+def _infer_species_from_text(text: str) -> str | None:
+    """Return canonical species name if the text mentions one, else None.
+
+    Used only when the planner left ``species_canonical=null`` AND intent is
+    not 'definition' — definition queries shouldn't propagate a species back
+    into the payload.
+    """
+    m = _INFERRED_SPECIES_RE.search(text)
+    if not m:
+        return None
+    return _SPECIES_ALIASES_TO_CANONICAL.get(m.group(0).lower())
 
 
 # ─── Tenacity retry wrapper (A-10) ──────────────────────────────────────
@@ -545,12 +660,27 @@ async def synthesizer_node(state: TideAgentState) -> dict[str, Any]:
     citations = _extract_citations(text, chunks)
     confidence = _compute_confidence(state)
 
-    return {
+    # If the planner didn't get a species but the LLM picked one in its
+    # response (e.g. "best species to target" path), surface it via the
+    # state-update merge so the SSE payload reflects the recommendation.
+    # Definition intent excluded: a defined term shouldn't propagate a
+    # species back into the payload.
+    inferred_species: str | None = None
+    if (
+        not state.get("species_canonical")
+        and state.get("intent") != "definition"
+    ):
+        inferred_species = _infer_species_from_text(text)
+
+    out: dict[str, Any] = {
         "recommendation_text": text,
         "citations": citations,
         "confidence_label": confidence,
         "synth_latency_ms": elapsed_ms,
     }
+    if inferred_species:
+        out["species_canonical"] = inferred_species
+    return out
 
 
 __all__ = [
