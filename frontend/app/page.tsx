@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useRef } from "react"
+import { Suspense, useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { useTideQuery, type SSEErrorCode } from "@/lib/useTideQuery"
 import { useSessionHistory } from "@/lib/useSessionHistory"
@@ -17,37 +17,52 @@ const ERROR_COPY: Record<SSEErrorCode, string> = {
   internal: "Something went wrong. The team's been notified.",
 }
 
+/**
+ * Reads `?q=` from the URL once and auto-submits via the supplied callback.
+ * Lives in its own component because Next 16 requires `useSearchParams()`
+ * to be inside a `<Suspense>` boundary — otherwise static prerendering of
+ * `/` fails the build. Renders nothing.
+ */
+function AutoQueryFromSearchParams({
+  onSubmit,
+}: {
+  onSubmit: (q: string) => void
+}) {
+  const searchParams = useSearchParams()
+  const autoSubmittedRef = useRef(false)
+  useEffect(() => {
+    if (autoSubmittedRef.current) return
+    const q = searchParams?.get("q")?.trim()
+    if (q) {
+      autoSubmittedRef.current = true
+      onSubmit(q)
+    }
+    // intentionally only depend on searchParams — re-firing on onSubmit
+    // identity changes would double-submit when the parent re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+  return null
+}
+
 export default function HomePage() {
   const { state, submit, reset } = useTideQuery()
   const { list, add } = useSessionHistory()
-  const searchParams = useSearchParams()
-  const autoSubmittedRef = useRef(false)
 
   const handleSubmit = (q: string) => {
     add(q)
     submit(q)
   }
 
-  // Pre-seed from ?q= so deep-links (e.g. the ShapTopThree empty-state CTA
-  // "Ask Tide about Sandy Hook →") drop the user straight into a relevant
-  // recommendation. Fires once per page load; subsequent edits to ?q= via
-  // navigation are ignored to avoid duplicate submissions on history nav.
-  useEffect(() => {
-    if (autoSubmittedRef.current) return
-    const q = searchParams?.get("q")?.trim()
-    if (q) {
-      autoSubmittedRef.current = true
-      handleSubmit(q)
-    }
-    // intentionally only depend on the searchParams reference — we don't
-    // want to re-fire when the user later submits a different query.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
-
   const inFlight = state.phase === "connecting" || state.phase === "streaming"
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 pb-24 md:pb-8">
+      {/* Suspense boundary required by Next 16 for useSearchParams (it opts
+          the subtree out of static rendering, which Vercel build enforces). */}
+      <Suspense fallback={null}>
+        <AutoQueryFromSearchParams onSubmit={handleSubmit} />
+      </Suspense>
+
       <header className="mb-6">
         <h1 className="font-display text-4xl text-tide-high">Tide</h1>
         <p className="mt-1 text-lg text-stone-700">Hyper-local NJ saltwater fishing intel.</p>
