@@ -432,6 +432,7 @@ export interface CitationOut {
   source: string;
   date: string | null;
   chunk_id: string | null;
+  source_url: string | null;
 }
 
 export interface RecommendationPayload {

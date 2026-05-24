@@ -65,7 +65,7 @@ export function SpotDetailPanel({ spot, conditions, shap, reports }: Props) {
           planning_context CRITICAL:
             <ShapTopThree shap={shap} />     (NOT shap={null})
             <ReportsList reports={reports} /> (NOT reports={[]}) */}
-      <ShapTopThree shap={shap} />
+      <ShapTopThree shap={shap} spotName={spot?.name ?? null} />
       <ReportsList reports={reports} />
     </article>
   )

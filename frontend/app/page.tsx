@@ -1,4 +1,6 @@
 "use client"
+import { useEffect, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import { useTideQuery, type SSEErrorCode } from "@/lib/useTideQuery"
 import { useSessionHistory } from "@/lib/useSessionHistory"
 import { QueryInput } from "@/components/query/QueryInput"
@@ -18,11 +20,29 @@ const ERROR_COPY: Record<SSEErrorCode, string> = {
 export default function HomePage() {
   const { state, submit, reset } = useTideQuery()
   const { list, add } = useSessionHistory()
+  const searchParams = useSearchParams()
+  const autoSubmittedRef = useRef(false)
 
   const handleSubmit = (q: string) => {
     add(q)
     submit(q)
   }
+
+  // Pre-seed from ?q= so deep-links (e.g. the ShapTopThree empty-state CTA
+  // "Ask Tide about Sandy Hook →") drop the user straight into a relevant
+  // recommendation. Fires once per page load; subsequent edits to ?q= via
+  // navigation are ignored to avoid duplicate submissions on history nav.
+  useEffect(() => {
+    if (autoSubmittedRef.current) return
+    const q = searchParams?.get("q")?.trim()
+    if (q) {
+      autoSubmittedRef.current = true
+      handleSubmit(q)
+    }
+    // intentionally only depend on the searchParams reference — we don't
+    // want to re-fire when the user later submits a different query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const inFlight = state.phase === "connecting" || state.phase === "streaming"
 

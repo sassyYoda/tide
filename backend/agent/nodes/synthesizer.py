@@ -431,11 +431,20 @@ def _extract_citations(text: str, chunks: list[RAGChunk]) -> list[Citation]:
             continue
         seen.add(key)
         chunk_id: str | None = None
+        source_url: str | None = None
         for c in chunks:
             if c.get("source_name") == source and c.get("date") == date:
                 chunk_id = c.get("chunk_id")
+                source_url = c.get("source_url")
                 break
-        out.append({"source": source, "date": date, "chunk_id": chunk_id or ""})
+        out.append(
+            {
+                "source": source,
+                "date": date,
+                "chunk_id": chunk_id or "",
+                "source_url": source_url or "",
+            }
+        )
     return out
 
 

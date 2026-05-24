@@ -18,9 +18,9 @@ import type { RecommendationPayload } from "@/lib/api-types"
 const sample: RecommendationPayload = {
   recommendation_text: "Try Barnegat Inlet Saturday 6:30-9am.",
   citations: [
-    { source: "NJF", date: "2026-04-22", chunk_id: null },
-    { source: "SO", date: "2026-04-20", chunk_id: null },
-    { source: "NJF", date: "2026-04-19", chunk_id: null },
+    { source: "NJF", date: "2026-04-22", chunk_id: null, source_url: null },
+    { source: "SO", date: "2026-04-20", chunk_id: null, source_url: null },
+    { source: "NJF", date: "2026-04-19", chunk_id: null, source_url: null },
   ],
   confidence_label: "High",
   retrieval_ok: true,
@@ -53,16 +53,19 @@ describe("B-4 destination side — round-trip via Plan 05 builder + Plan 06 pars
       source: "NJF",
       date: "2026-04-22",
       chunk_id: null,
+      source_url: null,
     })
     expect(cites[1]).toEqual({
       source: "SO",
       date: "2026-04-20",
       chunk_id: null,
+      source_url: null,
     })
     expect(cites[2]).toEqual({
       source: "NJF",
       date: "2026-04-19",
       chunk_id: null,
+      source_url: null,
     })
   })
 
@@ -81,7 +84,7 @@ describe("B-4 destination side — round-trip via Plan 05 builder + Plan 06 pars
   test("parseCite trailing colon → date: null (round-trips Plan 05's `${date ?? \"\"}`)", () => {
     const cites = parseCite("NJF:")
     expect(cites).toHaveLength(1)
-    expect(cites[0]).toEqual({ source: "NJF", date: null, chunk_id: null })
+    expect(cites[0]).toEqual({ source: "NJF", date: null, chunk_id: null, source_url: null })
   })
 
   test("parseShap truncates to first 3 (regression net on destination)", () => {

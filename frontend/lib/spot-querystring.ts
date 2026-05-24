@@ -50,7 +50,16 @@ export function parseCite(s?: string | null): CitationOut[] {
       const idx = p.lastIndexOf(":")
       const source = idx >= 0 ? p.slice(0, idx) : p
       const dateStr = idx >= 0 ? p.slice(idx + 1) : ""
-      return { source, date: dateStr || null, chunk_id: null } as CitationOut
+      // source_url is null when parsed from the URL — the original click-
+      // through URL isn't serialized in the spot-link querystring (would
+      // blow past sane URL length budgets); the spot-detail page renders
+      // these as plain text, not anchors.
+      return {
+        source,
+        date: dateStr || null,
+        chunk_id: null,
+        source_url: null,
+      } as CitationOut
     })
     .slice(0, 5)
 }

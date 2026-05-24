@@ -54,6 +54,7 @@ class CitationOut(BaseModel):
     source: str
     date: str | None = None
     chunk_id: str | None = None
+    source_url: str | None = None
 
 
 class RecommendationPayload(BaseModel):
@@ -122,6 +123,7 @@ def make_recommendation_payload(state: TideAgentState) -> RecommendationPayload:
             source=c.get("source", "unknown"),
             date=c.get("date"),
             chunk_id=c.get("chunk_id"),
+            source_url=c.get("source_url") or None,
         )
         for c in cits_in
     ]

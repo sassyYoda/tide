@@ -58,6 +58,7 @@ class Citation(TypedDict, total=False):
     source: str
     date: str
     chunk_id: str
+    source_url: str
 
 
 class TideAgentState(TypedDict, total=False):

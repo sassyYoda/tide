@@ -5,8 +5,8 @@ import type { RecommendationPayload } from "@/lib/api-types"
 const sample: RecommendationPayload = {
   recommendation_text: "x",
   citations: [
-    { source: "NJF", date: "2026-04-22", chunk_id: null },
-    { source: "SO", date: "2026-04-20", chunk_id: null },
+    { source: "NJF", date: "2026-04-22", chunk_id: null, source_url: null },
+    { source: "SO", date: "2026-04-20", chunk_id: null, source_url: null },
   ],
   confidence_label: "High",
   retrieval_ok: true,
@@ -36,6 +36,7 @@ describe("buildSpotDetailQuerystring — B-4 source side", () => {
         source: `S${i}`,
         date: "2026-01-01",
         chunk_id: null,
+        source_url: null,
       })),
     }
     const qs = buildSpotDetailQuerystring(big)
@@ -52,7 +53,7 @@ describe("buildSpotDetailQuerystring — B-4 source side", () => {
   test("citation with null date round-trips with trailing colon", () => {
     const r: RecommendationPayload = {
       ...sample,
-      citations: [{ source: "NJF", date: null, chunk_id: null }],
+      citations: [{ source: "NJF", date: null, chunk_id: null, source_url: null }],
     }
     const qs = buildSpotDetailQuerystring(r)
     expect(decodeURIComponent(qs)).toContain("cite=NJF:")

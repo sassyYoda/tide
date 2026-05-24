@@ -21,15 +21,27 @@ def test_citation_regex_extracts_pairs():
         "Stripers are hitting bunker chunks [Report: SurfTalk, 2026-04-22]."
     )
     chunks = [
-        {"source_name": "NJF", "date": "2026-04-20", "chunk_id": "c1"},
-        {"source_name": "SurfTalk", "date": "2026-04-22", "chunk_id": "c2"},
+        {
+            "source_name": "NJF",
+            "date": "2026-04-20",
+            "chunk_id": "c1",
+            "source_url": "https://njfishing.com/thread/123",
+        },
+        {
+            "source_name": "SurfTalk",
+            "date": "2026-04-22",
+            "chunk_id": "c2",
+            "source_url": "https://stripersonline.com/topic/456",
+        },
     ]
     cits = _extract_citations(text, chunks)
     assert len(cits) == 2
     assert cits[0]["source"] == "NJF"
     assert cits[0]["chunk_id"] == "c1"
+    assert cits[0]["source_url"] == "https://njfishing.com/thread/123"
     assert cits[1]["source"] == "SurfTalk"
     assert cits[1]["chunk_id"] == "c2"
+    assert cits[1]["source_url"] == "https://stripersonline.com/topic/456"
 
 
 def test_citation_regex_handles_no_citations():
@@ -58,6 +70,33 @@ def test_citation_regex_unmatched_chunk_returns_empty_chunk_id():
     assert len(cits) == 1
     assert cits[0]["source"] == "PhantomBlog"
     assert cits[0]["chunk_id"] == ""
+    # Defensive: when the chunk isn't found, source_url must be empty —
+    # the backend must NOT fabricate a URL.
+    assert cits[0]["source_url"] == ""
+
+
+def test_citation_source_url_empty_when_source_unmatched():
+    """Defensive: citation references a source not present in chunks list.
+
+    The citation should still surface (so the model's output is visible) but
+    source_url MUST be empty — we cannot fabricate URLs for unknown sources.
+    """
+    from agent.nodes.synthesizer import _extract_citations
+
+    text = "[Report: GhostSource, 2026-05-01]"
+    chunks = [
+        {
+            "source_name": "NJF",
+            "date": "2026-04-20",
+            "chunk_id": "c1",
+            "source_url": "https://njfishing.com/thread/123",
+        },
+    ]
+    cits = _extract_citations(text, chunks)
+    assert len(cits) == 1
+    assert cits[0]["source"] == "GhostSource"
+    assert cits[0]["chunk_id"] == ""
+    assert cits[0]["source_url"] == ""
 
 
 def test_citation_regex_handles_commas_in_source_name():

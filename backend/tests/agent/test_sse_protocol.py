@@ -136,3 +136,44 @@ def test_recommendation_payload_includes_rag_latency_ms():
     p = make_recommendation_payload(state)
     body = p.model_dump()
     assert body["rag_latency_ms"] == 412.5
+
+
+def test_recommendation_payload_propagates_citation_source_url():
+    """Citations with source_url must flow through onto the wire payload.
+
+    When source_url is empty/missing, the field must serialize as None (not '').
+    """
+    from agent.sse_protocol import make_recommendation_payload
+
+    state = {
+        "recommendation_text": "x",
+        "confidence_label": "Moderate",
+        "citations": [
+            {
+                "source": "NJF",
+                "date": "2026-04-20",
+                "chunk_id": "c1",
+                "source_url": "https://njfishing.com/thread/123",
+            },
+            {
+                "source": "Ghost",
+                "date": "2026-04-22",
+                "chunk_id": "",
+                "source_url": "",
+            },
+        ],
+    }
+    p = make_recommendation_payload(state)
+    body = p.model_dump()
+    assert body["citations"][0]["source_url"] == "https://njfishing.com/thread/123"
+    assert body["citations"][1]["source_url"] is None
+
+
+def test_citation_out_rejects_extra_field():
+    """extra='forbid' must remain in force on CitationOut."""
+    from pydantic import ValidationError
+
+    from agent.sse_protocol import CitationOut
+
+    with pytest.raises(ValidationError):
+        CitationOut(source="x", leaked="hi")  # type: ignore[call-arg]

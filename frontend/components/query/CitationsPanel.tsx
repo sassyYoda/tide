@@ -14,19 +14,41 @@ function CitationList({ citations }: Props) {
   }
   return (
     <ol className="space-y-3" data-testid="citations-list">
-      {citations.map((c, i) => (
-        <li
-          key={`${c.source}-${i}`}
-          className="rounded-md border border-stone-200 bg-white p-3 text-sm"
-        >
-          {/* P11: render source/date as React text nodes only — never raw HTML insertion */}
-          <div className="font-medium text-stone-900">{c.source}</div>
-          {c.date && <div className="text-xs text-stone-500">{c.date}</div>}
-          {c.chunk_id && (
-            <div className="mt-1 font-mono text-xs text-stone-400">{c.chunk_id}</div>
-          )}
-        </li>
-      ))}
+      {citations.map((c, i) => {
+        // P11: render source/date as React text nodes only — never raw HTML insertion.
+        // When source_url is present, wrap the source line in an external <a>;
+        // otherwise fall back to a plain text node.
+        const hasUrl = !!c.source_url
+        const sourceContent = hasUrl ? (
+          <a
+            href={c.source_url as string}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-tide-high underline-offset-2 hover:underline"
+            data-testid="citation-source-link"
+          >
+            {c.source}
+            <span aria-hidden="true" className="ml-1 text-xs">
+              ↗
+            </span>
+            <span className="sr-only"> (opens in new tab)</span>
+          </a>
+        ) : (
+          <span className="font-medium text-stone-900">{c.source}</span>
+        )
+        return (
+          <li
+            key={`${c.source}-${i}`}
+            className="rounded-md border border-stone-200 bg-white p-3 text-sm"
+          >
+            <div>{sourceContent}</div>
+            {c.date && <div className="text-xs text-stone-500">{c.date}</div>}
+            {c.chunk_id && (
+              <div className="mt-1 font-mono text-xs text-stone-400">{c.chunk_id}</div>
+            )}
+          </li>
+        )
+      })}
     </ol>
   )
 }
