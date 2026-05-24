@@ -60,6 +60,8 @@ def _score_slot(
     local_hour: int,
     wind_speed_ms: float | None,
     precip_prob_pct: float | None,
+    *,
+    has_tide: bool = True,
 ) -> float:
     """Heuristic fishability proxy for a single forecast hour (NOT ML).
 
@@ -73,8 +75,15 @@ def _score_slot(
     - ``quality_score``: 0..1 solunar quality (the dominant term).
     - ``local_hour``: America/New_York hour-of-day (for the low-light bonus).
     - ``wind_speed_ms`` / ``precip_prob_pct``: forecast weather (may be None).
+    - ``has_tide``: whether a tide forecast row joined for this hour.
 
     Returns a non-negative score (clamped at 0).
+
+    Completeness preference: solunar quality is near-identical across the
+    fleet at any given hour (it's astronomical), so ties are common. A slot
+    missing its weather or tide forecast row takes a small penalty so a
+    fully-covered slot wins the tie — the angler gets a recommendation we
+    can actually back with wind + tide numbers rather than a data gap.
     """
     score = float(quality_score) if quality_score is not None else 0.0
     # Prime low-light feeding windows (dawn 5-8, dusk 17-20 local).
@@ -89,6 +98,12 @@ def _score_slot(
     # Heavy-precip penalty.
     if precip_prob_pct is not None and precip_prob_pct > 60:
         score -= 0.15
+    # Completeness preference (tiebreaker) — deprioritize data gaps so the
+    # winning slot always carries wind + tide we can cite.
+    if wind_speed_ms is None:
+        score -= 0.02
+    if not has_tide:
+        score -= 0.02
     return max(0.0, score)
 
 
@@ -173,7 +188,10 @@ async def _sweep_week_for_spot(
         tide_level = tide["predicted_level_m"] if tide else None
         tide_hi_lo = tide["hi_lo"] if tide else None
 
-        score = _score_slot(s["quality_score"], local_hour, wind, precip)
+        score = _score_slot(
+            s["quality_score"], local_hour, wind, precip,
+            has_tide=tide is not None,
+        )
         slot = {
             "spot_id": cand["spot_id"],
             "spot_name": cand["spot_name"],

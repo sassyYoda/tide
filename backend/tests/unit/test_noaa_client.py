@@ -79,7 +79,7 @@ async def test_fetch_all_products_for_station_shape():
     """Full station fetch returns one tidal row + N forecast rows.
 
     The forecast count is bounded by the static fixture (48 entries); the
-    actual HTTP request uses ``range=168`` so the future-window covers a
+    actual HTTP request uses ``range=168`` so the future-window covers a multi-day
     full 7-day horizon. We verify the ``range`` param explicitly below.
     """
     wl = _load("water_level.json")
@@ -116,8 +116,8 @@ async def test_fetch_all_products_for_station_shape():
     assert row["source"] == "noaa_co-ops"
     assert row["time"].tzinfo is not None
     # Forecast row count equals what the fixture provides; the production
-    # call requests 168h (7d) of harmonic predictions, verified below.
+    # call requests 216h (9d) of harmonic predictions, verified below.
     assert len(forecast) == len(preds["predictions"])
     assert all(f["station_id"] == "8534720" for f in forecast)
     assert all(f["target_time"].tzinfo is not None for f in forecast)
-    assert captured_predictions_params.get("range") == "168"
+    assert captured_predictions_params.get("range") == "216"

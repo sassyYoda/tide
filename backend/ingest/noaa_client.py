@@ -123,11 +123,15 @@ async def _fetch_product(
         params["datum"] = "MLLW"
         # NOAA CO-OPS: `date=today` is mutually exclusive with a multi-day
         # `range` — passing both silently caps the response to today. To get
-        # a 7-day hourly harmonic forecast we anchor on an explicit
+        # a multi-day hourly harmonic forecast we anchor on an explicit
         # `begin_date` (today, GMT) plus `range` in hours. `begin_date` +
         # `range` is the documented combination for forward windows.
+        # 216h (9d) overshoots the agent's 7-day best-of-week sweep — since
+        # begin_date anchors at 00:00 today, a plain 168 would stop at
+        # ~day-7 midnight and leave the late-day-7 peak solunar hours without
+        # a tide row to join. 9 days guarantees full coverage of the window.
         params["begin_date"] = datetime.now(timezone.utc).strftime("%Y%m%d")
-        params["range"] = "168"  # 24h × 7d
+        params["range"] = "216"  # 24h × 9d (overshoots the 7d sweep)
     else:
         params["date"] = "latest"
     if extra_params:

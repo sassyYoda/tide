@@ -44,9 +44,10 @@ class WeatherObservationRow(TypedDict, total=False):
     raw_payload: dict[str, Any]
 
 
-# Open-Meteo free tier supports up to 16 forecast_days; we pull 7 (168h) to
-# cover a typical "stripers Saturday morning?" question without burning quota.
-FORECAST_DAYS = 7
+# Open-Meteo free tier supports up to 16 forecast_days. We pull 9 to overshoot
+# the agent's 7-day best-of-week sweep: the top-ranked solunar hour can land
+# late on day 7, so the weather forecast must extend past it to always join.
+FORECAST_DAYS = 9
 
 
 @retry(

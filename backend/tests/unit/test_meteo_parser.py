@@ -112,13 +112,13 @@ def test_shape_forecast_rows_empty_hourly():
 
 
 def test_fetch_open_meteo_includes_forecast_days_param():
-    """The endpoint call must include forecast_days=7 so hourly arrays cover 168h."""
+    """The endpoint call must include forecast_days=9 so hourly arrays overshoot the 7d sweep."""
     import httpx
     import respx
 
     from ingest.meteo_client import OPEN_METEO_BASE, fetch_open_meteo, FORECAST_DAYS
 
-    assert FORECAST_DAYS == 7
+    assert FORECAST_DAYS == 9
 
     captured: dict = {}
 
@@ -137,4 +137,4 @@ def test_fetch_open_meteo_includes_forecast_days_param():
             return await fetch_open_meteo(40.0, -74.0)
 
     asyncio.run(_go())
-    assert captured["params"].get("forecast_days") == "7"
+    assert captured["params"].get("forecast_days") == "9"
