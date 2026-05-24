@@ -45,11 +45,25 @@ function probeUrl(): string {
   return `${base}/healthz`
 }
 
+/**
+ * Determine the initial `online` value defensively. Node 20+ (used by
+ * Vercel's SSR / static-prerender) defines `navigator` as a global, so
+ * `typeof navigator === "undefined"` is false at build time — but
+ * `navigator.onLine` is `undefined` (a partial polyfill). The previous
+ * SSR guard let `undefined` flow through, which React treated as falsy
+ * and rendered the offline banner into the static HTML. The banner then
+ * survived hydration (mismatch handling kept the server DOM) and showed
+ * forever despite the browser being online. Three layered checks fix it:
+ */
+function _initialOnline(): boolean {
+  if (typeof window === "undefined") return true // true SSR / build
+  if (typeof navigator === "undefined") return true // defense in depth
+  if (typeof navigator.onLine !== "boolean") return true // partial polyfill
+  return navigator.onLine
+}
+
 export function useOnlineStatus(): boolean {
-  const [online, setOnline] = useState<boolean>(() => {
-    if (typeof navigator === "undefined") return true
-    return navigator.onLine
-  })
+  const [online, setOnline] = useState<boolean>(_initialOnline)
   const probeAbort = useRef<AbortController | null>(null)
   const pollTimer = useRef<number | null>(null)
   const url = useRef<string>(probeUrl())
