@@ -387,6 +387,123 @@ async def test_data_fetcher_no_pin_topn_fallback(
 
 
 @pytest.mark.asyncio
+async def test_data_fetcher_honors_future_target_time(
+    seed_spot_and_score, lazy_models, lazy_spots,
+):
+    """Future ``time_window_start`` → conditions reflect the forecast row.
+
+    Seeds extra rows in ``noaa_harmonic_forecasts`` + ``solunar_values`` at
+    now+24h, then calls the node with ``time_window_start`` matching, and
+    asserts the returned ``conditions`` carry the forecast water level,
+    the future solunar moon_phase, AND the ``_forecast_for`` metadata key.
+    """
+    from agent.nodes.data_fetcher import data_fetcher_node
+    from agent.spot_resolver import reset_for_test
+
+    spot_id = seed_spot_and_score
+    reset_for_test([{
+        "id": spot_id,
+        "name": "Barnegat Inlet — North Jetty",
+        "lat": 39.7659,
+        "lon": -74.1098,
+    }])
+
+    now = datetime.now(timezone.utc)
+    target = now + timedelta(hours=24)
+
+    # Seed forecast tide + future solunar at the target hour. The
+    # ``fetcher_urls`` fixture monkeypatched app.config.settings to point
+    # at the testcontainer, so we reuse the sync url from there.
+    from app import config as app_config
+    engine = sa.create_engine(app_config.settings.database_sync_url)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO noaa_harmonic_forecasts "
+                    "(station_id, issued_at, target_time, "
+                    "predicted_level_m, hi_lo, raw_payload) "
+                    "VALUES (:sid, :issued, :tgt, :lvl, :hi_lo, "
+                    "CAST('{}' AS JSONB))"
+                ),
+                {
+                    "sid": "DF_TEST_STATION_1",
+                    "issued": now,
+                    "tgt": target,
+                    "lvl": 1.85,
+                    "hi_lo": "H",
+                },
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO solunar_values "
+                    "(station_id, time, moon_phase, moon_phase_sin, "
+                    "moon_phase_cos, illumination, lunar_day, quality_score) "
+                    "VALUES (:sid, :t, 0.77, 0.42, -0.91, 0.93, 22.1, 0.66)"
+                ),
+                {"sid": "DF_TEST_STATION_1", "t": target},
+            )
+    finally:
+        engine.dispose()
+
+    out = await data_fetcher_node({
+        "query": "stripers at Barnegat Inlet saturday morning",
+        "species_canonical": "striper",
+        "location_hint_raw": "Barnegat Inlet",
+        "time_window_start": target,
+    })
+
+    assert out["spot_id"] == spot_id
+    assert out["conditions"] is not None
+    # Forecast tide level wins over the observation's 0.42.
+    assert out["conditions"]["water_level_m"] == pytest.approx(1.85)
+    assert out["conditions"].get("tide_hi_lo") == "H"
+    # Future solunar at target hour, not the latest (now-5min) row.
+    assert out["conditions"]["moon_phase"] == pytest.approx(0.77)
+    assert out["conditions"]["lunar_day"] == pytest.approx(22.1)
+    # Water temp + wind / pressure stay on the observation values.
+    assert out["conditions"]["water_temp_c"] == pytest.approx(14.1)
+    assert out["conditions"]["surface_pressure_hpa"] == pytest.approx(1015.3)
+    # Forecast metadata key is set.
+    assert "_forecast_for" in out["conditions"]
+    assert out["conditions"]["_forecast_for"].startswith(
+        target.isoformat()[:16]  # match to the minute
+    )
+    # Forecast freshness: clamp to 0, not stale.
+    assert out["conditions_stale"] is False
+    assert out["data_age_seconds"] == pytest.approx(0.0, abs=2.0)
+
+
+@pytest.mark.asyncio
+async def test_data_fetcher_beyond_horizon_falls_back_to_latest(
+    seed_spot_and_score, lazy_models, lazy_spots,
+):
+    """``time_window_start`` >7 days out → fall back to latest obs, no _forecast_for."""
+    from agent.nodes.data_fetcher import data_fetcher_node
+    from agent.spot_resolver import reset_for_test
+
+    spot_id = seed_spot_and_score
+    reset_for_test([{
+        "id": spot_id,
+        "name": "Barnegat Inlet — North Jetty",
+        "lat": 39.7659,
+        "lon": -74.1098,
+    }])
+
+    far_future = datetime.now(timezone.utc) + timedelta(days=10)
+    out = await data_fetcher_node({
+        "query": "stripers at Barnegat Inlet way out",
+        "species_canonical": "striper",
+        "location_hint_raw": "Barnegat Inlet",
+        "time_window_start": far_future,
+    })
+    assert out["conditions"] is not None
+    # Original observation water level (0.42), not a forecast.
+    assert out["conditions"]["water_level_m"] == pytest.approx(0.42)
+    assert "_forecast_for" not in out["conditions"]
+
+
+@pytest.mark.asyncio
 async def test_xgb_under_50ms(lazy_models):
     """P-06: XGBoost inference per call ≤ 50 ms.
 

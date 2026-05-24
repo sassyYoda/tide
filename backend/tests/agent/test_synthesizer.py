@@ -365,6 +365,83 @@ def test_format_user_message_definition_drops_conditions_block():
     assert "Conditions:" not in user_text
 
 
+# ─── Forecast-vs-current rendering (rule 13) ───────────────────────────
+
+
+def test_format_user_message_forecast_split_renders_both_blocks():
+    """When conditions["_forecast_for"] is set, render two headers — forecast
+    (tide + solunar) and CURRENT observed weather — so the LLM can apply
+    rule 13 (label forecast values vs current observations distinctly).
+    """
+    from agent.nodes.synthesizer import _format_user_message
+
+    state = {
+        "query": "stripers saturday morning at barnegat",
+        "spot_name": "Barnegat Inlet",
+        "spot_id": 1,
+        "species_canonical": "striper",
+        "conditions": {
+            "water_level_m": 0.42,
+            "moon_phase": 0.26,
+            "surface_pressure_hpa": 1028.2,
+            "_forecast_for": "2026-05-31T11:00:00+00:00",
+        },
+        "chunks": [],
+        "retrieval_ok": True,
+        "conditions_stale": False,
+    }
+    user_text = _format_user_message(state)
+
+    # Both headers present.
+    assert "Conditions (forecast for 2026-05-31" in user_text
+    assert "Weather (CURRENT observed" in user_text
+
+    # Forecast field appears under the forecast header (above weather header).
+    fc_idx = user_text.index("Conditions (forecast for")
+    wx_idx = user_text.index("Weather (CURRENT observed")
+    wl_idx = user_text.index("water_level_m")
+    mp_idx = user_text.index("moon_phase")
+    sp_idx = user_text.index("surface_pressure_hpa")
+    assert fc_idx < wl_idx < wx_idx, "water_level_m must render under forecast header"
+    assert fc_idx < mp_idx < wx_idx, "moon_phase must render under forecast header"
+    assert wx_idx < sp_idx, "surface_pressure_hpa must render under weather header"
+
+    # The _forecast_for key itself must NOT render as a measurement line
+    # (it's metadata — only the header consumes it).
+    assert "_forecast_for: 2026-05-31" not in user_text
+    assert "  _forecast_for" not in user_text
+
+
+def test_format_user_message_no_forecast_falls_back_to_legacy_block():
+    """No ``_forecast_for`` flag → single ``Conditions:`` header, no split —
+    preserves existing behavior for present-time queries.
+    """
+    from agent.nodes.synthesizer import _format_user_message
+
+    state = {
+        "query": "stripers now",
+        "spot_name": "Barnegat Inlet",
+        "spot_id": 1,
+        "species_canonical": "striper",
+        "conditions": {
+            "water_level_m": 0.42,
+            "surface_pressure_hpa": 1028.2,
+        },
+        "chunks": [],
+        "retrieval_ok": True,
+        "conditions_stale": False,
+    }
+    user_text = _format_user_message(state)
+
+    # Single legacy header — no split, no "(forecast for ...)" suffix.
+    assert "Conditions:" in user_text
+    assert "Conditions (forecast for" not in user_text
+    assert "Weather (CURRENT observed" not in user_text
+    # Both fields still render.
+    assert "water_level_m: 0.42" in user_text
+    assert "surface_pressure_hpa: 1028.2" in user_text
+
+
 # ─── New confidence-ladder tests (Bug 1) ────────────────────────────────
 
 

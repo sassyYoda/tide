@@ -487,9 +487,9 @@ def upsert_weather_observations(conn, rows: list[dict]) -> int:
               station_id, time, wind_speed_ms, wind_dir_deg,
               surface_pressure_hpa, temperature_2m_c,
               precipitation_prob_pct, cloud_cover_pct,
-              source, raw_payload
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (station_id, time) DO NOTHING
+              source, raw_payload, is_forecast
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, FALSE)
+            ON CONFLICT (station_id, time, is_forecast) DO NOTHING
             """,
             payload,
             page_size=500,

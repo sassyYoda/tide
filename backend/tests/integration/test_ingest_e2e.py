@@ -320,6 +320,76 @@ async def test_solunar_writes(ingest_urls):
         engine.dispose()
 
 
+@pytest.mark.asyncio
+async def test_solunar_seeds_seven_day_horizon(ingest_urls):
+    """compute_solunar_task seeds ≥168 future-hour rows per station (7-day horizon).
+
+    Verifies the agent can answer "Saturday morning" questions by reading a
+    pre-computed solunar row at the target_time rather than only "now".
+    """
+    from celery_app.tasks.solunar import SOLUNAR_FORECAST_HOURS, _run_all
+
+    # Clear out any rows from a prior test invocation so per-station counts
+    # reflect a single run.
+    engine = sa.create_engine(ingest_urls["sync_url"])
+    try:
+        with engine.begin() as conn:
+            conn.execute(sa.text("DELETE FROM solunar_values"))
+    finally:
+        engine.dispose()
+
+    await _run_all()
+
+    stations = _stations(ingest_urls["sync_url"])
+    assert len(stations) > 0
+    engine = sa.create_engine(ingest_urls["sync_url"])
+    try:
+        with engine.connect() as conn:
+            for station_id, *_ in stations:
+                per_station = conn.execute(
+                    sa.text(
+                        "SELECT count(*) FROM solunar_values "
+                        "WHERE station_id = :sid"
+                    ),
+                    {"sid": station_id},
+                ).scalar_one()
+                assert per_station >= SOLUNAR_FORECAST_HOURS, (
+                    f"station {station_id} only has {per_station} rows; "
+                    f"expected ≥{SOLUNAR_FORECAST_HOURS}"
+                )
+
+                window = conn.execute(
+                    sa.text(
+                        "SELECT min(time) AS lo, max(time) AS hi "
+                        "FROM solunar_values WHERE station_id = :sid"
+                    ),
+                    {"sid": station_id},
+                ).first()
+                assert window is not None
+                # Window spans roughly 7 days (167 hours between first/last
+                # hourly row when there are 168 rows on exact hour boundaries).
+                span_hours = (window.hi - window.lo).total_seconds() / 3600.0
+                assert span_hours >= SOLUNAR_FORECAST_HOURS - 2, (
+                    f"station {station_id} span only {span_hours:.1f}h; "
+                    f"expected ≥{SOLUNAR_FORECAST_HOURS - 2}h"
+                )
+                # Every seeded row must land on a top-of-hour boundary.
+                non_hourly = conn.execute(
+                    sa.text(
+                        "SELECT count(*) FROM solunar_values "
+                        "WHERE station_id = :sid AND "
+                        "(EXTRACT(MINUTE FROM time) <> 0 OR "
+                        " EXTRACT(SECOND FROM time) <> 0)"
+                    ),
+                    {"sid": station_id},
+                ).scalar_one()
+                assert non_hourly == 0, (
+                    f"station {station_id} has {non_hourly} non-top-of-hour rows"
+                )
+    finally:
+        engine.dispose()
+
+
 # ---------------------------------------------------------------------------
 # D-04 — pressure_trend fields populated on the second meteo run
 # ---------------------------------------------------------------------------

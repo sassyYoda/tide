@@ -114,7 +114,17 @@ class TidalObservation(Base):
 
 
 class WeatherObservation(Base):
-    """Open-Meteo weather hypertable — 30-min cadence, composite PK (station_id, time)."""
+    """Open-Meteo weather hypertable — composite PK (station_id, time, is_forecast).
+
+    Observed rows (``is_forecast = false``) are written by the 30-min poll task
+    from Open-Meteo's ``current`` block. Forecast rows (``is_forecast = true``)
+    are written from the same endpoint's ``hourly`` block out to ``forecast_days
+    = 7``. The boolean is part of the PK so an observation and a forecast at
+    the same hour never collide on merge.
+
+    Existing "latest observation" readers MUST filter ``is_forecast = false``;
+    forecast-aware readers filter ``is_forecast = true AND time = <hour>``.
+    """
 
     __tablename__ = "weather_observations"
 
@@ -126,6 +136,12 @@ class WeatherObservation(Base):
     )
     time: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), primary_key=True, nullable=False
+    )
+    is_forecast: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        primary_key=True,
+        nullable=False,
+        server_default=sa.text("FALSE"),
     )
     wind_speed_ms: Mapped[float | None] = mapped_column(sa.Double(), nullable=True)
     wind_dir_deg: Mapped[float | None] = mapped_column(sa.Double(), nullable=True)

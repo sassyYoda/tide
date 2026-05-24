@@ -152,24 +152,81 @@ async def _read_latest_activity_score(
 # Fields surfaced to the synthesizer prompt. Keep narrow + named the way an
 # angler would read them so the LLM doesn't have to translate column names.
 async def _read_latest_conditions(
-    session: Any, station_id: str,
+    session: Any,
+    station_id: str,
+    *,
+    target_time: datetime | None = None,
 ) -> dict[str, Any]:
-    """Read latest tidal + weather + solunar values directly for ``station_id``.
+    """Read tidal + weather + solunar values for ``station_id``.
 
-    Returns a dict with two keys:
+    When ``target_time`` is ``None`` (or in the past), reads the latest
+    observation rows — same behavior as the original implementation.
 
-    - ``conditions``: flat dict of human-readable fields (or ``None`` when no
-      data exists for the station yet).
-    - ``observed_at``: the freshest ``time`` across the three reads — used to
-      compute ``data_age_seconds`` and the ``conditions_stale`` flag.
+    When ``target_time`` is in the future (within the 7-day forecast
+    horizon), reads tide level + hi/lo from ``noaa_harmonic_forecasts``
+    and the matching ``solunar_values`` hour. Wind / pressure / air-temp
+    fall back to the latest observation (no forecast feed wired yet),
+    and water temp likewise stays on the observation row. When ANY value
+    came from a forecast read, ``conditions['_forecast_for']`` is set to
+    the ISO timestamp of ``target_time`` so the synthesizer can caveat.
 
-    Implementation: three small ORDER BY time DESC LIMIT 1 reads (one per
-    feed). Each is a single index seek on (station_id, time DESC) — cheap
-    enough that we don't need the ``conditions_15min`` CAGG here.
+    Returns:
+        ``{"conditions": dict | None, "observed_at": datetime | None}``.
+        ``observed_at`` is the freshest ``time`` across the three reads
+        (used to compute ``data_age_seconds`` / ``conditions_stale`` by
+        the caller). For forecast reads the caller normally overrides
+        this with ``target_time`` since the freshness gauge has different
+        semantics for future windows.
     """
     out: dict[str, Any] = {}
     freshest: datetime | None = None
+    used_forecast = False
 
+    # Decide whether to consult the forecast tables. We only do so when
+    # ``target_time`` is strictly in the future relative to "now" — past
+    # windows always read from the observation tables (the historical
+    # truth, not a stale prediction).
+    use_forecast = False
+    if target_time is not None:
+        target_time_utc = _normalize_to_utc(target_time)
+        if target_time_utc > datetime.now(tz=timezone.utc):
+            use_forecast = True
+    else:
+        target_time_utc = None
+
+    # ── Tide / water level ────────────────────────────────────────────
+    if use_forecast and target_time_utc is not None:
+        # Pick the forecast row nearest target_time within ±30 min,
+        # preferring the most recently issued prediction for ties.
+        fc_row = (
+            await session.execute(
+                text(
+                    "SELECT target_time, predicted_level_m, hi_lo "
+                    "FROM noaa_harmonic_forecasts "
+                    "WHERE station_id = :sid "
+                    "  AND target_time BETWEEN :lo AND :hi "
+                    "ORDER BY abs(extract(epoch FROM (target_time - :tgt))) ASC, "
+                    "         issued_at DESC "
+                    "LIMIT 1"
+                ),
+                {
+                    "sid": station_id,
+                    "lo": target_time_utc - timedelta(minutes=30),
+                    "hi": target_time_utc + timedelta(minutes=30),
+                    "tgt": target_time_utc,
+                },
+            )
+        ).mappings().first()
+        if fc_row is not None and fc_row.get("predicted_level_m") is not None:
+            out["water_level_m"] = fc_row["predicted_level_m"]
+            if fc_row.get("hi_lo") is not None:
+                out["tide_hi_lo"] = fc_row["hi_lo"]
+            if fc_row.get("target_time") is not None:
+                freshest = fc_row["target_time"]
+            used_forecast = True
+
+    # Always read latest tidal_observations for water_temp / wind / current
+    # (and as fallback for water_level when forecast row is missing).
     tide_row = (
         await session.execute(
             text(
@@ -182,8 +239,12 @@ async def _read_latest_conditions(
         )
     ).mappings().first()
     if tide_row is not None:
+        # Only fill water_level_m from the observation when forecast didn't
+        # supply one (matrix: forecast wins for future windows, observation
+        # for past/now).
+        if "water_level_m" not in out and tide_row.get("water_level_m") is not None:
+            out["water_level_m"] = tide_row["water_level_m"]
         for k in (
-            "water_level_m",
             "water_temp_c",
             "current_speed_ms",
             "current_dir_deg",
@@ -197,7 +258,8 @@ async def _read_latest_conditions(
         if tide_row.get("wind_dir_deg") is not None:
             out["wind_dir_deg"] = tide_row["wind_dir_deg"]
         if tide_row.get("time") is not None:
-            freshest = tide_row["time"]
+            if freshest is None or tide_row["time"] > freshest:
+                freshest = tide_row["time"]
 
     weather_row = (
         await session.execute(
@@ -234,19 +296,43 @@ async def _read_latest_conditions(
             if freshest is None or weather_row["time"] > freshest:
                 freshest = weather_row["time"]
 
-    sol_row = (
-        await session.execute(
-            text(
-                "SELECT time, moon_phase, illumination, lunar_day, "
-                "quality_score, sunrise, sunset, "
-                "next_major_start, next_major_end, "
-                "next_minor_start, next_minor_end "
-                "FROM solunar_values WHERE station_id = :sid "
-                "ORDER BY time DESC LIMIT 1"
-            ),
-            {"sid": station_id},
-        )
-    ).mappings().first()
+    # ── Solunar ───────────────────────────────────────────────────────
+    sol_row = None
+    if use_forecast and target_time_utc is not None:
+        # Composite PK is (station_id, time) — pick the row closest to
+        # target_time (typically within an hour since solunar is hourly).
+        sol_row = (
+            await session.execute(
+                text(
+                    "SELECT time, moon_phase, illumination, lunar_day, "
+                    "quality_score, sunrise, sunset, "
+                    "next_major_start, next_major_end, "
+                    "next_minor_start, next_minor_end "
+                    "FROM solunar_values WHERE station_id = :sid "
+                    "ORDER BY abs(extract(epoch FROM (time - :tgt))) ASC "
+                    "LIMIT 1"
+                ),
+                {"sid": station_id, "tgt": target_time_utc},
+            )
+        ).mappings().first()
+        if sol_row is not None:
+            used_forecast = True
+
+    if sol_row is None:
+        sol_row = (
+            await session.execute(
+                text(
+                    "SELECT time, moon_phase, illumination, lunar_day, "
+                    "quality_score, sunrise, sunset, "
+                    "next_major_start, next_major_end, "
+                    "next_minor_start, next_minor_end "
+                    "FROM solunar_values WHERE station_id = :sid "
+                    "ORDER BY time DESC LIMIT 1"
+                ),
+                {"sid": station_id},
+            )
+        ).mappings().first()
+
     if sol_row is not None:
         for k in ("moon_phase", "illumination", "lunar_day"):
             if sol_row.get(k) is not None:
@@ -266,6 +352,9 @@ async def _read_latest_conditions(
         if sol_row.get("time") is not None:
             if freshest is None or sol_row["time"] > freshest:
                 freshest = sol_row["time"]
+
+    if used_forecast and target_time is not None and out:
+        out["_forecast_for"] = _normalize_to_utc(target_time).isoformat()
 
     return {
         "conditions": out or None,
@@ -470,19 +559,38 @@ async def _fuzzy_resolve_each(
 
 
 async def _enrich_candidates_with_conditions(
-    session: Any, candidates: list[dict[str, Any]],
+    session: Any,
+    candidates: list[dict[str, Any]],
+    *,
+    target_time: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """Attach ``conditions`` + ``data_age_seconds`` to each candidate in-place."""
+    """Attach ``conditions`` + ``data_age_seconds`` to each candidate in-place.
+
+    ``target_time`` (UTC, optional) is threaded through to
+    ``_read_latest_conditions`` so candidates honor the user's intended
+    fishing window. For future windows the freshness gauge degenerates
+    (the forecast IS the data for that window), so ``data_age_seconds``
+    is clamped to 0 when ``target_time`` is in the future.
+    """
     now = datetime.now(tz=timezone.utc)
+    is_future = target_time is not None and target_time > now
     for cand in candidates:
         station_id = cand.get("station_id")
         if not station_id:
             cand["conditions"] = None
             cand["data_age_seconds"] = None
             continue
-        cond = await _read_latest_conditions(session, station_id)
+        cond = await _read_latest_conditions(
+            session, station_id, target_time=target_time,
+        )
         cand["conditions"] = cond["conditions"]
-        if cond["observed_at"] is not None:
+        if is_future and target_time is not None:
+            # Forecast read: observed_at semantics flip — the data is "for"
+            # target_time, age is 0 for future, positive for past windows.
+            cand["data_age_seconds"] = max(
+                0.0, (now - target_time).total_seconds()
+            )
+        elif cond["observed_at"] is not None:
             t_obs = _normalize_to_utc(cond["observed_at"])
             cand["data_age_seconds"] = (now - t_obs).total_seconds()
         else:
@@ -538,6 +646,18 @@ async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
     lat = location_hint.get("lat")
     lon = location_hint.get("lon")
 
+    # Target time window — planner emits TZ-aware datetimes (America/New_York).
+    # Normalize to UTC so downstream SQL bounds are unambiguous. When the
+    # window is beyond the 7-day forecast horizon, fall back to "latest
+    # observation" (no forecast rows will exist that far out).
+    target_time_raw = state.get("time_window_start")
+    target_time: datetime | None = None
+    if target_time_raw is not None:
+        target_time = _normalize_to_utc(target_time_raw)
+        horizon = datetime.now(tz=timezone.utc) + timedelta(days=7)
+        if target_time > horizon:
+            target_time = None  # too far — degrade to latest observation
+
     resolved: ResolvedSpot = resolve_spot(raw_name, lat, lon)
     update: dict[str, Any] = {
         "spot_resolution_strategy": resolved.strategy,
@@ -570,7 +690,9 @@ async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
                 c["user_query_term"] = None
 
         if candidates:
-            await _enrich_candidates_with_conditions(session, candidates)
+            await _enrich_candidates_with_conditions(
+                session, candidates, target_time=target_time,
+            )
             update["candidate_spots"] = candidates
             # First candidate becomes the canonical pick for the SSE
             # payload + freshness gauge. Synthesizer prompt then ranks all
@@ -582,8 +704,15 @@ async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
             update["spot_lon"] = primary["lon"]
             update["conditions"] = primary.get("conditions")
             update["data_age_seconds"] = primary.get("data_age_seconds")
+            # For future windows the forecast IS the data — staleness flag
+            # should stay False (the enrich helper already clamped age to 0).
+            now_for_stale = datetime.now(tz=timezone.utc)
+            is_future_window = (
+                target_time is not None and target_time > now_for_stale
+            )
             if (
-                update["data_age_seconds"] is not None
+                not is_future_window
+                and update["data_age_seconds"] is not None
                 and update["data_age_seconds"] > FRESHNESS_THRESHOLD.total_seconds()
             ):
                 update["conditions_stale"] = True
@@ -627,13 +756,23 @@ async def data_fetcher_node(state: TideAgentState) -> dict[str, Any]:
             # ActivityScore so a missing ML model can't blank them out).
             station_id = await _read_spot_station(session, update["spot_id"])
             if station_id is not None:
-                cond = await _read_latest_conditions(session, station_id)
+                cond = await _read_latest_conditions(
+                    session, station_id, target_time=target_time,
+                )
                 update["conditions"] = cond["conditions"]
-                if cond["observed_at"] is not None:
+                now_utc = datetime.now(tz=timezone.utc)
+                is_future_window = (
+                    target_time is not None and target_time > now_utc
+                )
+                if is_future_window and target_time is not None:
+                    # Forecast read: age is 0 for future windows, positive
+                    # for past. Staleness gate is bypassed (the forecast IS
+                    # the data for that window).
+                    age = max(0.0, (now_utc - target_time).total_seconds())
+                    update["data_age_seconds"] = age
+                elif cond["observed_at"] is not None:
                     t_obs_utc = _normalize_to_utc(cond["observed_at"])
-                    age = (
-                        datetime.now(tz=timezone.utc) - t_obs_utc
-                    ).total_seconds()
+                    age = (now_utc - t_obs_utc).total_seconds()
                     update["data_age_seconds"] = age
                     if age > FRESHNESS_THRESHOLD.total_seconds():
                         update["conditions_stale"] = True

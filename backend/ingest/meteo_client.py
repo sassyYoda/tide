@@ -1,11 +1,14 @@
 """Async Open-Meteo API client.
 
 Open-Meteo is a free (attribution-only) weather API. We fetch the ``current``
-block (instantaneous values at the lat/lon) plus a 48h hourly forecast.
+block (instantaneous values at the lat/lon) plus a 7-day hourly forecast
+(168 rows) from the same endpoint in a single round-trip.
 
 ``fetch_open_meteo`` returns the raw response dict; ``shape_meteo_row``
-projects the ``current`` block into a ``WeatherObservation``-shaped dict.
-Pressure-trend computation lives in ``ingest/pressure.py``.
+projects the ``current`` block into an observation row (``is_forecast=False``);
+``shape_meteo_forecast_rows`` pivots the ``hourly`` arrays into per-hour
+forecast rows (``is_forecast=True``) where ``time`` carries the forecast's
+target hour. Pressure-trend computation lives in ``ingest/pressure.py``.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ _TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 class WeatherObservationRow(TypedDict, total=False):
     station_id: str
     time: datetime
+    is_forecast: bool
     wind_speed_ms: float | None
     wind_dir_deg: float | None
     surface_pressure_hpa: float | None
@@ -38,6 +42,11 @@ class WeatherObservationRow(TypedDict, total=False):
     cloud_cover_pct: float | None
     source: str
     raw_payload: dict[str, Any]
+
+
+# Open-Meteo free tier supports up to 16 forecast_days; we pull 7 (168h) to
+# cover a typical "stripers Saturday morning?" question without burning quota.
+FORECAST_DAYS = 7
 
 
 @retry(
@@ -63,6 +72,8 @@ async def fetch_open_meteo(
             "wind_speed_10m,wind_direction_10m,surface_pressure,"
             "temperature_2m,precipitation_probability,cloud_cover"
         ),
+        # 7-day hourly forecast (168 rows). Free tier allows up to 16 days.
+        "forecast_days": str(FORECAST_DAYS),
         "timezone": "UTC",
         "windspeed_unit": "ms",
     }
@@ -149,6 +160,7 @@ def shape_meteo_row(
     return {
         "station_id": station_id,
         "time": obs_time,
+        "is_forecast": False,
         "wind_speed_ms": _coerce_float(current.get("wind_speed_10m")),
         "wind_dir_deg": _coerce_float(current.get("wind_direction_10m")),
         "surface_pressure_hpa": _coerce_float(current.get("surface_pressure")),
@@ -160,9 +172,95 @@ def shape_meteo_row(
     }
 
 
+def shape_meteo_forecast_rows(
+    station_id: str,
+    raw: dict[str, Any],
+) -> list[WeatherObservationRow]:
+    """Pivot the ``hourly`` block of ``raw`` into one row per forecast hour.
+
+    Each returned row has ``is_forecast=True`` and ``time`` set to the hour's
+    target wall-clock time (as parsed from ``hourly.time[i]``, treated as UTC
+    because the request specified ``timezone=UTC``).
+
+    Returns an empty list if the hourly block is missing or empty — the
+    observation path remains independent. ``raw_payload`` on each row carries
+    a thin per-hour dict (not the full response) to keep storage costs bounded
+    when N stations × 168 rows write per beat tick.
+    """
+    hourly = raw.get("hourly") or {}
+    times = hourly.get("time") or []
+    if not times:
+        return []
+    wind_speed = hourly.get("wind_speed_10m") or []
+    wind_dir = hourly.get("wind_direction_10m") or []
+    pressure = hourly.get("surface_pressure") or []
+    temperature = hourly.get("temperature_2m") or []
+    precip_prob = hourly.get("precipitation_probability") or []
+    cloud = hourly.get("cloud_cover") or []
+
+    out: list[WeatherObservationRow] = []
+    for idx, t_str in enumerate(times):
+        try:
+            target_time = _parse_iso_utc(t_str)
+        except (ValueError, TypeError):
+            continue
+        row: WeatherObservationRow = {
+            "station_id": station_id,
+            "time": target_time,
+            "is_forecast": True,
+            "wind_speed_ms": _coerce_float(
+                wind_speed[idx] if idx < len(wind_speed) else None
+            ),
+            "wind_dir_deg": _coerce_float(
+                wind_dir[idx] if idx < len(wind_dir) else None
+            ),
+            "surface_pressure_hpa": _coerce_float(
+                pressure[idx] if idx < len(pressure) else None
+            ),
+            "temperature_2m_c": _coerce_float(
+                temperature[idx] if idx < len(temperature) else None
+            ),
+            "precipitation_prob_pct": _coerce_float(
+                precip_prob[idx] if idx < len(precip_prob) else None
+            ),
+            "cloud_cover_pct": _coerce_float(
+                cloud[idx] if idx < len(cloud) else None
+            ),
+            "source": "open_meteo_forecast",
+            # Store per-hour slice plus a back-reference to the request — keeps
+            # the row replayable per D-09 without bloating 168 rows × N stations
+            # with the full hourly array.
+            "raw_payload": {
+                "hour_index": idx,
+                "target_time": t_str,
+                "wind_speed_10m": wind_speed[idx] if idx < len(wind_speed) else None,
+                "wind_direction_10m": (
+                    wind_dir[idx] if idx < len(wind_dir) else None
+                ),
+                "surface_pressure": (
+                    pressure[idx] if idx < len(pressure) else None
+                ),
+                "temperature_2m": (
+                    temperature[idx] if idx < len(temperature) else None
+                ),
+                "precipitation_probability": (
+                    precip_prob[idx] if idx < len(precip_prob) else None
+                ),
+                "cloud_cover": cloud[idx] if idx < len(cloud) else None,
+                "latitude": raw.get("latitude"),
+                "longitude": raw.get("longitude"),
+                "generationtime_ms": raw.get("generationtime_ms"),
+            },
+        }
+        out.append(row)
+    return out
+
+
 __all__ = [
     "OPEN_METEO_BASE",
+    "FORECAST_DAYS",
     "WeatherObservationRow",
     "fetch_open_meteo",
     "shape_meteo_row",
+    "shape_meteo_forecast_rows",
 ]

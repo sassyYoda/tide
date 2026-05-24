@@ -122,7 +122,7 @@ async def _fetch_product(
         params["interval"] = "h"
         params["datum"] = "MLLW"
         params["date"] = "today"
-        params["range"] = "48"
+        params["range"] = "168"
     else:
         params["date"] = "latest"
     if extra_params:

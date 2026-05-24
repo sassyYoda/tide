@@ -87,6 +87,7 @@ _CONDITIONS_QUERY = text(
             cloud_cover_pct
         FROM weather_observations
         WHERE station_id = :station_id
+          AND is_forecast = FALSE
         ORDER BY time DESC
         LIMIT 1
     ),
@@ -102,6 +103,7 @@ _CONDITIONS_QUERY = text(
                 AS pressure_trend_label
         FROM weather_observations
         WHERE station_id = :station_id
+          AND is_forecast = FALSE
         ORDER BY time DESC
         LIMIT 1
     ),

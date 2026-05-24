@@ -173,6 +173,7 @@ async def _weather_block(
             WeatherObservation.precipitation_prob_pct,
         )
         .where(WeatherObservation.station_id == station_id)
+        .where(WeatherObservation.is_forecast.is_(False))
         .where(WeatherObservation.time >= since)
         .where(WeatherObservation.time <= hi_bound)  # STRICT upper bound
         .order_by(WeatherObservation.time.desc())
@@ -212,6 +213,7 @@ async def _pressure_deltas(
     q = (
         select(WeatherObservation.time, WeatherObservation.surface_pressure_hpa)
         .where(WeatherObservation.station_id == station_id)
+        .where(WeatherObservation.is_forecast.is_(False))
         .where(WeatherObservation.time >= since)
         .where(WeatherObservation.time <= hi_bound)  # STRICT upper bound
         .order_by(WeatherObservation.time.desc())

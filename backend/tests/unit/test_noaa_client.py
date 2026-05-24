@@ -76,11 +76,18 @@ async def test_success_single_try():
 
 @pytest.mark.asyncio
 async def test_fetch_all_products_for_station_shape():
-    """Full station fetch returns one tidal row + 48 forecast rows."""
+    """Full station fetch returns one tidal row + N forecast rows.
+
+    The forecast count is bounded by the static fixture (48 entries); the
+    actual HTTP request uses ``range=168`` so the future-window covers a
+    full 7-day horizon. We verify the ``range`` param explicitly below.
+    """
     wl = _load("water_level.json")
     wt = _load("water_temperature.json")
     wind = _load("wind.json")
     preds = _load("predictions.json")
+
+    captured_predictions_params: dict[str, str] = {}
 
     def _handler(request):
         product = request.url.params.get("product")
@@ -91,6 +98,7 @@ async def test_fetch_all_products_for_station_shape():
         if product == "wind":
             return httpx.Response(200, json=wind)
         if product == "predictions":
+            captured_predictions_params.update(dict(request.url.params))
             return httpx.Response(200, json=preds)
         return httpx.Response(404)
 
@@ -107,6 +115,9 @@ async def test_fetch_all_products_for_station_shape():
     assert row["wind_speed_ms"] == pytest.approx(4.2)
     assert row["source"] == "noaa_co-ops"
     assert row["time"].tzinfo is not None
-    assert len(forecast) == 48
+    # Forecast row count equals what the fixture provides; the production
+    # call requests 168h (7d) of harmonic predictions, verified below.
+    assert len(forecast) == len(preds["predictions"])
     assert all(f["station_id"] == "8534720" for f in forecast)
     assert all(f["target_time"].tzinfo is not None for f in forecast)
+    assert captured_predictions_params.get("range") == "168"

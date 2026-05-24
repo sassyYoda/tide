@@ -130,7 +130,11 @@ RULES (binding):
     cloud cover. Quote the numeric value (e.g. "Water temp 13.8°C", "1028 hPa
     pressure", "Solunar quality 0.81"), not vague language ("the temperature
     is fine"). This is mandatory — the user wants to see the data drove the
-    call.
+    call. When the conditions block is split into "Conditions (forecast for
+    ...)" + "Weather (CURRENT observed)" (see rule 13), label each cited value
+    accordingly: forecast tide/solunar values as "Saturday 6 AM forecast water
+    level 0.42 m" (never "current"); weather values as "current observed
+    pressure 1028 hPa — actual Saturday weather may vary".
 11. COMPARISON / BEST-OF-ALL handling: When the user message includes a
     "Candidate spots under consideration" section with ≥2 spots, you MUST:
     (a) compare them on the relevant environmental factors for the target
@@ -148,6 +152,20 @@ RULES (binding):
     real recent usage from them via [Report: <source>, <YYYY-MM-DD>]. Skip
     the Confidence line — definition queries don't carry the report-freshness
     contract.
+13. FORECAST vs CURRENT OBSERVATION handling: When the user message renders a
+    "Conditions (forecast for <window>)" block (split from a separate
+    "Weather (CURRENT observed)" block), you MUST:
+    (a) frame the tide + solunar values as FORECASTS for the named window
+        (e.g. "Saturday's forecast solunar quality is 0.81") — never describe
+        them as "current" or "right now";
+    (b) explicitly caveat the weather values as "current observed weather
+        (forecast for that window not available — actual weather may differ)"
+        — do NOT extrapolate today's weather into the user's future window
+        with false confidence;
+    (c) when naming the tide phase (incoming/outgoing/slack), use the
+        forecast water_level_m and adjacent rows (if implied by the data) —
+        but do NOT invent next high/low timings from a single water_level
+        value.
 """
 
 
@@ -237,15 +255,96 @@ def _render_chunks(chunks: list[RAGChunk]) -> list[str]:
     return out
 
 
+# Fields that come from the tide/solunar forecast pipeline. When the
+# ``data_fetcher`` marks ``conditions["_forecast_for"]``, these fields hold
+# FORECAST values for the named window. Everything not in this set (and not in
+# ``_WEATHER_FIELDS``) is rendered under the forecast header too — the
+# weather-vs-forecast split is metadata-driven, not exhaustive.
+_FORECAST_FIELDS: frozenset[str] = frozenset(
+    {
+        "water_level_m",
+        "water_temp_c",
+        "current_speed_ms",
+        "current_dir_deg",
+        "moon_phase",
+        "illumination",
+        "lunar_day",
+        "solunar_quality_score",
+        "sunrise",
+        "sunset",
+        "next_major_start",
+        "next_major_end",
+        "next_minor_start",
+        "next_minor_end",
+    }
+)
+
+
+# Weather fields are ALWAYS current observations — we don't ingest weather
+# forecasts at MVP. When ``_forecast_for`` is set, these are explicitly
+# labelled as "current observed" so the LLM doesn't conflate them with the
+# forecasted tide/solunar values.
+_WEATHER_FIELDS: frozenset[str] = frozenset(
+    {
+        "surface_pressure_hpa",
+        "air_temperature_c",
+        "precipitation_prob_pct",
+        "cloud_cover_pct",
+        "wind_speed_ms",
+        "wind_dir_deg",
+    }
+)
+
+
 def _render_conditions_block(conditions: dict[str, Any] | None) -> list[str]:
-    """Render a Conditions: block (used inline for candidate spots)."""
-    lines: list[str] = ["Conditions:"]
-    if conditions:
+    """Render a Conditions: block (used inline for candidate spots).
+
+    When ``conditions["_forecast_for"]`` is present, the block is split into
+    two sub-sections so the LLM sees the FORECAST (tide + solunar) values
+    distinctly from the CURRENT OBSERVED weather values. The ``_forecast_for``
+    key is metadata, never rendered as a measurement line.
+
+    When the flag is absent (legacy path), a single "Conditions:" header
+    lists every key — preserves existing behavior.
+    """
+    if not conditions:
+        return ["Conditions:", "  (no conditions retrieved)"]
+
+    forecast_for = conditions.get("_forecast_for")
+    if not forecast_for:
+        # Legacy single-block rendering.
+        lines: list[str] = ["Conditions:"]
         for k, v in conditions.items():
             lines.append(f"  {k}: {v}")
+        return lines
+
+    # Split rendering: forecast (tide + solunar) header + weather header.
+    forecast_lines: list[str] = []
+    weather_lines: list[str] = []
+    for k, v in conditions.items():
+        if k == "_forecast_for":
+            continue  # metadata flag, not a measurement
+        if k in _WEATHER_FIELDS:
+            weather_lines.append(f"  {k}: {v}")
+        else:
+            # Default unknowns into the forecast header so the LLM treats them
+            # as window-specific values (tide/solunar fields list is the
+            # canonical set — but new forecast fields shouldn't silently fall
+            # into the weather bucket).
+            forecast_lines.append(f"  {k}: {v}")
+
+    out: list[str] = [f"Conditions (forecast for {forecast_for}):"]
+    if forecast_lines:
+        out.extend(forecast_lines)
     else:
-        lines.append("  (no conditions retrieved)")
-    return lines
+        out.append("  (no forecast tide/solunar fields available)")
+    out.append("")
+    out.append("Weather (CURRENT observed, not forecast):")
+    if weather_lines:
+        out.extend(weather_lines)
+    else:
+        out.append("  (no current weather observations available)")
+    return out
 
 
 def _format_user_message(state: TideAgentState) -> str:

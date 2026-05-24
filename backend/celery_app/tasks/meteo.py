@@ -11,7 +11,11 @@ from sqlalchemy import select
 from celery_app import celery_app
 from db.models import NoaaStation, WeatherObservation
 from db.session import async_session_factory
-from ingest.meteo_client import fetch_open_meteo, shape_meteo_row
+from ingest.meteo_client import (
+    fetch_open_meteo,
+    shape_meteo_forecast_rows,
+    shape_meteo_row,
+)
 from ingest.metrics import (
     data_age_seconds,
     ingest_duration_seconds,
@@ -40,13 +44,17 @@ async def _poll_one(station: NoaaStation, results: dict[str, int]) -> None:
     try:
         raw = await fetch_open_meteo(station.lat, station.lon)
         row = shape_meteo_row(station.station_id, raw)
+        forecast_rows = shape_meteo_forecast_rows(station.station_id, raw)
 
-        # Pressure trend: last 7 hourly rows to compute 1h/3h/6h deltas.
+        # Pressure trend: last 7 hourly observation rows to compute deltas.
+        # Strictly filter is_forecast=false so forecast rows never poison the
+        # trend (would create spurious deltas across the obs/forecast seam).
         async with async_session_factory() as session:
             since = row["time"] - timedelta(hours=7)
             q = (
                 select(WeatherObservation.time, WeatherObservation.surface_pressure_hpa)
                 .where(WeatherObservation.station_id == station.station_id)
+                .where(WeatherObservation.is_forecast.is_(False))
                 .where(WeatherObservation.time >= since)
                 .order_by(WeatherObservation.time.desc())
             )
@@ -68,6 +76,12 @@ async def _poll_one(station: NoaaStation, results: dict[str, int]) -> None:
             row["raw_payload"] = payload
 
             await session.merge(WeatherObservation(**row))
+            # Forecast rows share the same (station_id, time) but distinct
+            # is_forecast=True — they never collide with the observation row.
+            # Re-merging on every beat just overwrites yesterday's forecast for
+            # the same target hour with the freshest predicted values.
+            for f_row in forecast_rows:
+                await session.merge(WeatherObservation(**f_row))
             await session.commit()
 
         results["success"] += 1
