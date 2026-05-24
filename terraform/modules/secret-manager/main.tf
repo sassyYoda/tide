@@ -7,8 +7,8 @@ locals {
     "tide-anthropic-api-key" = var.anthropic_api_key
     "tide-langfuse"          = jsonencode({ public_key = var.langfuse_public_key, secret_key = var.langfuse_secret_key })
     "tide-db"                = jsonencode({ password = var.db_password }) # 06-02 extends with url + sync_url after VM IP known
-    "tide-redis-url"         = "redis://redis@10.0.0.10:6379/0"            # placeholder; 06-02 overwrites with actual VM IP
-    "tide-qdrant-url"        = "http://10.0.0.10:6333"                     # placeholder; 06-02 overwrites
+    "tide-redis-url"         = "redis://redis@10.0.0.10:6379/0"           # placeholder; 06-02 overwrites with actual VM IP
+    "tide-qdrant-url"        = "http://10.0.0.10:6333"                    # placeholder; 06-02 overwrites
   }
   consumer_sas = {
     backend = var.backend_sa_email

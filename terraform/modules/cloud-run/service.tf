@@ -15,8 +15,8 @@ locals {
   backend_secret_envs = {
     OPENAI_API_KEY    = var.secret_ids["tide-openai-api-key"]
     ANTHROPIC_API_KEY = var.secret_ids["tide-anthropic-api-key"]
-    LANGFUSE_BUNDLE   = var.secret_ids["tide-langfuse"]   # JSON: { public_key, secret_key }
-    DATABASE_BUNDLE   = var.secret_ids["tide-db"]         # JSON: { password, url, sync_url }
+    LANGFUSE_BUNDLE   = var.secret_ids["tide-langfuse"] # JSON: { public_key, secret_key }
+    DATABASE_BUNDLE   = var.secret_ids["tide-db"]       # JSON: { password, url, sync_url }
     REDIS_URL         = var.secret_ids["tide-redis-url"]
     QDRANT_URL        = var.secret_ids["tide-qdrant-url"]
   }
@@ -31,7 +31,7 @@ resource "google_cloud_run_v2_service" "backend" {
     service_account = var.backend_sa_email
 
     scaling {
-      min_instance_count = 0       # Pitfall P9 — scale-to-zero. Do NOT raise at MVP.
+      min_instance_count = 0 # Pitfall P9 — scale-to-zero. Do NOT raise at MVP.
       max_instance_count = 10
     }
     timeout                          = "120s"
@@ -39,7 +39,7 @@ resource "google_cloud_run_v2_service" "backend" {
 
     vpc_access {
       egress = "ALL_TRAFFIC"
-      network_interfaces {           # Pitfall P5 — NEVER `connector =`
+      network_interfaces { # Pitfall P5 — NEVER `connector =`
         network    = var.vpc_id
         subnetwork = var.subnet_id
         tags       = ["tide-cloudrun"]
@@ -58,8 +58,8 @@ resource "google_cloud_run_v2_service" "backend" {
           cpu    = "1"
           memory = "1Gi"
         }
-        cpu_idle          = true       # bill CPU only during request (scale-to-zero alignment)
-        startup_cpu_boost = true       # Pitfall P2 — cold-start mitigation
+        cpu_idle          = true # bill CPU only during request (scale-to-zero alignment)
+        startup_cpu_boost = true # Pitfall P2 — cold-start mitigation
       }
 
       # Non-secret env: VM internal IP for upstream health checks. The
