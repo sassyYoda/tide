@@ -20,13 +20,15 @@ import { useEffect, useRef, useState } from "react"
  *      so we recover automatically when the network returns — without
  *      relying on the `online` event.
  *
- * Probe target: NEXT_PUBLIC_API_URL + "/healthz". The backend allows
- * CORS from our Vercel origin and `/healthz` is intercepted by Cloud
- * Run's GFE (returns 404 in production today), but ANY HTTP response —
- * even 404 — means the network reached the server, so fetch resolves
- * and we treat that as online. Only network-level failures (CORS
- * preflight blocked, DNS, dropped connection) throw, and those are the
- * cases we WANT to treat as offline.
+ * Probe target: NEXT_PUBLIC_API_URL + "/healthz". The path is intercepted
+ * by Cloud Run's GFE (returns 404 with no CORS headers — Cloud Run reserves
+ * /healthz globally and won't pass it through to the app's CORS middleware).
+ * We send the probe with `mode: "no-cors"` so the browser does NOT enforce
+ * CORS-header validation; the fetch resolves with an opaque response on ANY
+ * HTTP reply (200/404/503 all count as "network reached server"). Only
+ * genuine network-level failures (DNS, dropped TCP, browser-offline,
+ * navigator-offline) throw, and those are exactly the cases we want to
+ * treat as offline.
  *
  * SSR-safe (defaults to `true` on the server so the banner never flashes
  * during hydration on a working client).
@@ -68,7 +70,11 @@ export function useOnlineStatus(): boolean {
           // Don't send credentials — keeps the preflight cheap and the
           // probe independent of any auth state.
           credentials: "omit",
-          mode: "cors",
+          // no-cors so the browser doesn't reject the opaque 404 from
+          // Cloud Run's GFE-served /healthz for missing CORS headers.
+          // We never read the body — we only need to know the network
+          // reached the server.
+          mode: "no-cors",
         })
         // ANY HTTP response (200, 404, 503) means the network reached
         // the server, so we're online.
