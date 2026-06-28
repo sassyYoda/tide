@@ -12,7 +12,7 @@
 
 ## Live demo
 
-- **PWA (Vercel):** <https://tide-obd99510w-aryan-ahujas-projects-b54c1c1d.vercel.app>
+- **PWA (Vercel):** <https://tide-six.vercel.app>
 - **Backend (Cloud Run):** _to be filled by deploy step (see `terraform output backend_url`)_
 - **Sample Langfuse traces** (publicly viewable, no account required):
   - Happy path (striper): <https://us.cloud.langfuse.com/project/cmon6k8aa015mad07jxqayowr/traces/cdaa58b7e3d0207b8e15660a404df7c0>
