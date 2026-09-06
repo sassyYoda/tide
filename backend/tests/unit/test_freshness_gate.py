@@ -16,7 +16,6 @@ import pytest
 from fastapi import HTTPException
 
 from app.deps.freshness import (
-    FRESHNESS_THRESHOLD,
     MICRO_CACHE_TTL_SECONDS,
     require_fresh_conditions,
 )

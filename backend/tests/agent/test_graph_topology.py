@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import importlib
 
-import pytest
 
 
 def test_node_names_exact():

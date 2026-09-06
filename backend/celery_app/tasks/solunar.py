@@ -14,11 +14,6 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-logger = logging.getLogger(__name__)
-
-# Number of future hourly rows to seed per station per run (7 days).
-SOLUNAR_FORECAST_HOURS = 168
-
 from celery_app import celery_app
 from db.models import NoaaStation, SolunarValue
 from db.session import async_session_factory
@@ -28,6 +23,11 @@ from ingest.metrics import (
     ingest_success_total,
 )
 from ingest.solunar import compute_solunar
+
+logger = logging.getLogger(__name__)
+
+# Number of future hourly rows to seed per station per run (7 days).
+SOLUNAR_FORECAST_HOURS = 168
 
 
 @celery_app.task(name="celery_app.tasks.solunar.compute_solunar_task", bind=True)

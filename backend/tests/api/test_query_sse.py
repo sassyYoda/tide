@@ -186,7 +186,7 @@ async def test_query_cache_key_normalization():
     NEVER use Python's built-in hash() — non-deterministic across processes.
     The query_cache_key impl must use hashlib.sha256.
     """
-    from cache.query_cache import normalize_query, query_cache_key
+    from cache.query_cache import query_cache_key
 
     # Case + whitespace normalize.
     k1 = query_cache_key("Cache TEST query", None, 42, None)

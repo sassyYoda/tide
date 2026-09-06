@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
 
 
 def _fake_request(headers: dict[str, str] | None = None) -> SimpleNamespace:

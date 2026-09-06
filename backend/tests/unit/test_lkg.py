@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import orjson
 import pytest
 
 from ingest.lkg import (

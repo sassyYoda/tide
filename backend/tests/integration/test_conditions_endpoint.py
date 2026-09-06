@@ -29,7 +29,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-import pytest_asyncio
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from redis.asyncio import Redis
