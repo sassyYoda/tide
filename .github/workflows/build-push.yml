@@ -109,7 +109,7 @@ jobs:
           # Resolve the staging-tagged URL and curl /api/v1/healthz.
           STAGING_URL=$(gcloud run services describe tide-backend \
             --region=${{ vars.GCP_REGION }} \
-            --format='value(status.traffic[?(@.tag=="staging")].url)')
+            --format=json | jq -r '.status.traffic[] | select(.tag=="staging") | .url')
           if [ -z "$STAGING_URL" ]; then
             echo "ERROR: could not resolve staging URL"
             exit 1
