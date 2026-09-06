@@ -14,7 +14,6 @@ so reports with no parsed report.fields.date are dropped here. Plan 04
 """
 from __future__ import annotations
 
-import json
 import logging
 import pathlib
 import random

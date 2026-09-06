@@ -12,7 +12,6 @@ from qdrant_client.models import (
     Fusion,
     FusionQuery,
     MatchAny,
-    MatchValue,
     Prefetch,
     SparseVector,
 )

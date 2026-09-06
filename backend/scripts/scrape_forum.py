@@ -18,12 +18,6 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib import robotparser
 
-# vBulletin renders post timestamps as "#1 04-18-2026, 05:18 PM" inside td.thead
-# elements. The leading "#N" anchor distinguishes per-post date cells from
-# breadcrumb td.thead cells at the top of the page.
-_VBULLETIN_DATE_RE = re.compile(
-    r"#\d+\s*(?P<date>\d{2}-\d{2}-\d{4}),?\s*\d{1,2}:\d{2}\s*[AaPp][Mm]"
-)
 
 import httpx
 from selectolax.parser import HTMLParser
@@ -35,6 +29,13 @@ from tenacity import (
 )
 
 from ingest.reports.schema import RawReport
+
+# vBulletin renders post timestamps as "#1 04-18-2026, 05:18 PM" inside td.thead
+# elements. The leading "#N" anchor distinguishes per-post date cells from
+# breadcrumb td.thead cells at the top of the page.
+_VBULLETIN_DATE_RE = re.compile(
+    r"#\d+\s*(?P<date>\d{2}-\d{2}-\d{4}),?\s*\d{1,2}:\d{2}\s*[AaPp][Mm]"
+)
 
 log = logging.getLogger(__name__)
 

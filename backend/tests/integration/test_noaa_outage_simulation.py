@@ -35,7 +35,7 @@ import respx
 import sqlalchemy as sa
 
 from ingest.lkg import BREAKER_THRESHOLD, read_lkg, write_lkg
-from ingest.metrics import ingest_failure_total, noaa_breaker_tripped_total
+from ingest.metrics import noaa_breaker_tripped_total
 from ingest.noaa_client import NOAA_BASE
 
 
@@ -152,12 +152,6 @@ async def test_3x_failure_trips_breaker_no_raise(
 
     trip_counter = noaa_breaker_tripped_total.labels(station_id=station_id)
     baseline_trips = trip_counter._value.get()
-    fail_counter = ingest_failure_total.labels(
-        source="noaa", station_id=station_id, reason="HTTPStatusError"
-    )
-    # The outer _poll_one catches the exception type as the class name of whatever
-    # tenacity reraises — could be HTTPStatusError (httpx) on 500.
-    baseline_fails = fail_counter._value.get()
 
     with respx.mock(assert_all_called=False) as router:
         router.get(NOAA_BASE).mock(return_value=httpx.Response(500))

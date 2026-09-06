@@ -11,9 +11,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
-import pytest_asyncio
 import sqlalchemy as sa
-from sqlalchemy import select
 
 pytestmark = pytest.mark.integration
 

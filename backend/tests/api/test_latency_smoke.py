@@ -23,7 +23,6 @@ acceptance for richer per-span observability.
 """
 from __future__ import annotations
 
-import os
 import time
 
 import pytest

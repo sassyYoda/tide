@@ -39,9 +39,6 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from agent.state import (
-    Intent,
-    RejectReason,
-    SpeciesCanonical,
     TideAgentState,
 )
 

@@ -60,13 +60,13 @@ os.environ.setdefault("LANGFUSE_PUBLIC_KEY", "")
 os.environ.setdefault("LANGFUSE_HOST", "https://cloud.langfuse.com")
 os.environ.setdefault("RAPIDFUZZ_THRESHOLD", "65")
 
-import pytest
-import pytest_asyncio
-import respx
-from freezegun import freeze_time
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from testcontainers.postgres import PostgresContainer
-from testcontainers.redis import RedisContainer
+import pytest  # noqa: E402  (env defaults above must precede app imports)
+import pytest_asyncio  # noqa: E402  (env defaults above must precede app imports)
+import respx  # noqa: E402  (env defaults above must precede app imports)
+from freezegun import freeze_time  # noqa: E402  (env defaults above must precede app imports)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402  (env defaults above must precede app imports)
+from testcontainers.postgres import PostgresContainer  # noqa: E402  (env defaults above must precede app imports)
+from testcontainers.redis import RedisContainer  # noqa: E402  (env defaults above must precede app imports)
 
 
 @pytest.fixture(scope="session")
