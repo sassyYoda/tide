@@ -1,0 +1,42 @@
+{
+  "striper": {
+    "optimal_temp_range": [13, 20],
+    "preferred_tide_phase": "outgoing",
+    "pressure_preference": "falling",
+    "solunar_response": "high",
+    "primary_forage": ["bunker", "herring", "sand_eel", "mackerel"],
+    "time_of_day_bias": "dawn_dusk"
+  },
+  "fluke": {
+    "optimal_temp_range": [16, 22],
+    "preferred_tide_phase": "moving",
+    "pressure_preference": "stable",
+    "solunar_response": "moderate",
+    "primary_forage": ["squid", "spearing", "killifish", "sand_eel"],
+    "time_of_day_bias": "daytime"
+  },
+  "bluefish": {
+    "optimal_temp_range": [15, 24],
+    "preferred_tide_phase": "outgoing",
+    "pressure_preference": "dropping",
+    "solunar_response": "high",
+    "primary_forage": ["bunker", "mullet", "herring", "spearing"],
+    "time_of_day_bias": "dawn_dusk"
+  },
+  "weakfish": {
+    "optimal_temp_range": [14, 21],
+    "preferred_tide_phase": "outgoing",
+    "pressure_preference": "stable",
+    "solunar_response": "moderate",
+    "primary_forage": ["grass_shrimp", "spearing", "squid", "killifish"],
+    "time_of_day_bias": "dawn_dusk"
+  },
+  "tautog": {
+    "optimal_temp_range": [13, 18],
+    "preferred_tide_phase": "slack",
+    "pressure_preference": "dropping",
+    "solunar_response": "low",
+    "primary_forage": ["green_crab", "asian_shore_crab", "mussel", "fiddler_crab"],
+    "time_of_day_bias": "daytime"
+  }
+}

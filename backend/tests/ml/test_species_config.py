@@ -64,3 +64,14 @@ def test_species_list_is_tuple_of_five():
     from ml.species_config import SPECIES_LIST
     assert len(SPECIES_LIST) == 5
     assert "tautog" in SPECIES_LIST
+
+
+def test_config_path_is_inside_docker_build_context():
+    """Regression: the container builds from backend/, so the resolved config
+    must live under backend/ — a repo-root-only path becomes /config/species.json
+    inside the image and silently disables the ML subsystem in prod."""
+    from ml.species_config import CONFIG_PATH
+
+    backend_dir = pathlib.Path(__file__).resolve().parents[2]
+    assert CONFIG_PATH.is_file()
+    assert backend_dir in CONFIG_PATH.parents
