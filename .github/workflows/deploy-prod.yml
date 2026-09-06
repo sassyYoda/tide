@@ -71,7 +71,7 @@ jobs:
           # all traffic until update-traffic completes).
           STAGING_URL=$(gcloud run services describe tide-backend \
             --region=${{ vars.GCP_REGION }} \
-            --format='value(status.traffic[?(@.tag=="${{ steps.revtag.outputs.revision_tag }}")].url)')
+            --format=json | jq -r '.status.traffic[] | select(.tag=="${{ steps.revtag.outputs.revision_tag }}") | .url')
           if [ -z "$STAGING_URL" ]; then
             echo "ERROR: could not resolve URL for revision tag '${{ steps.revtag.outputs.revision_tag }}'"
             gcloud run services describe tide-backend --region=${{ vars.GCP_REGION }} --format='value(status.traffic)'
@@ -113,7 +113,7 @@ jobs:
         run: |
           REVISION_NAME=$(gcloud run services describe tide-backend \
             --region=${{ vars.GCP_REGION }} \
-            --format='value(status.traffic[?(@.tag=="${{ steps.revtag.outputs.revision_tag }}")].revisionName)')
+            --format=json | jq -r '.status.traffic[] | select(.tag=="${{ steps.revtag.outputs.revision_tag }}") | .revisionName')
           echo "Promoted revision: $REVISION_NAME"
           echo "Release tag: ${{ github.ref_name }}"
           echo "Git SHA: ${{ github.sha }}"
