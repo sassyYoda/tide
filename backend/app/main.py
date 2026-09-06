@@ -130,6 +130,10 @@ def create_app() -> FastAPI:
     # Phase 1
     app.include_router(conditions_router, prefix="/api/v1")
     app.include_router(health_router)
+    # Cloud Run's Google frontend intercepts the bare ``/healthz`` path and
+    # answers 404 before the request reaches the container, so the same
+    # probe is also exposed under /api/v1 for deployed smoke tests.
+    app.include_router(health_router, prefix="/api/v1")
     # Phase 3 — query SSE + scored-spots
     app.include_router(v1_router, prefix="/api/v1")
 

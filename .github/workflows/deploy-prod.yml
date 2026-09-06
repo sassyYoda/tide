@@ -65,7 +65,7 @@ jobs:
 
       - name: Smoke test staging URL (pre-promotion gate)
         run: |
-          # Resolve the staging-tagged URL and curl /healthz BEFORE moving traffic.
+          # Resolve the staging-tagged URL and curl /api/v1/healthz BEFORE moving traffic.
           # If this fails, we abort the promotion — prod stays on the previous
           # revision (default Cloud Run behavior: previous revision still routes
           # all traffic until update-traffic completes).
@@ -79,8 +79,8 @@ jobs:
           fi
           echo "Staging URL: $STAGING_URL"
           curl --silent --fail --max-time 30 --retry 3 --retry-delay 5 \
-            "${STAGING_URL}/healthz" | grep -q '"status":"ok"'
-          echo "Pre-promotion /healthz: ok"
+            "${STAGING_URL}/api/v1/healthz" | grep -q '"status":"ok"'
+          echo "Pre-promotion /api/v1/healthz: ok"
 
       - name: Promote revision to 100% production traffic
         run: |
@@ -93,7 +93,7 @@ jobs:
             --to-tags="${{ steps.revtag.outputs.revision_tag }}=100" \
             --quiet
 
-      - name: Post-deploy /healthz check on prod URL
+      - name: Post-deploy /api/v1/healthz check on prod URL
         run: |
           # Resolve the service's primary (traffic-default) URL and re-check.
           PROD_URL=$(gcloud run services describe tide-backend \
@@ -106,8 +106,8 @@ jobs:
           echo "Prod URL: $PROD_URL"
           # Allow time for routing to propagate (rare; usually instant).
           curl --silent --fail --max-time 30 --retry 5 --retry-delay 5 \
-            "${PROD_URL}/healthz" | grep -q '"status":"ok"'
-          echo "Post-promotion /healthz: ok"
+            "${PROD_URL}/api/v1/healthz" | grep -q '"status":"ok"'
+          echo "Post-promotion /api/v1/healthz: ok"
 
       - name: Record promoted revision (audit trail)
         run: |

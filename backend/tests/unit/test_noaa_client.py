@@ -16,7 +16,6 @@ os.environ["NOAA_TEST_NO_JITTER"] = "1"
 
 from ingest.noaa_client import (  # noqa: E402
     NOAA_BASE,
-    NoaaAPIError,
     _fetch_product,
     fetch_all_products_for_station,
 )
@@ -121,3 +120,27 @@ async def test_fetch_all_products_for_station_shape():
     assert all(f["station_id"] == "8534720" for f in forecast)
     assert all(f["target_time"].tzinfo is not None for f in forecast)
     assert captured_predictions_params.get("range") == "216"
+
+
+@pytest.mark.asyncio
+async def test_water_level_request_sends_datum():
+    """NOAA CO-OPS rejects ``water_level`` without a datum (400 "Wrong Datum").
+
+    Regression for the Sep 2026 outage where every water_level poll 400'd and
+    ``water_level_m`` went null across all stations. The observed-level request
+    must carry ``datum=MLLW`` to match the predictions product.
+    """
+    wl = _load("water_level.json")
+    captured: dict[str, str] = {}
+
+    def _handler(request):
+        captured.update(dict(request.url.params))
+        return httpx.Response(200, json=wl)
+
+    with respx.mock(assert_all_called=False) as router:
+        router.get(NOAA_BASE).mock(side_effect=_handler)
+        async with httpx.AsyncClient() as client:
+            await _fetch_product(client, "8534720", "water_level")
+
+    assert captured.get("product") == "water_level"
+    assert captured.get("datum") == "MLLW"

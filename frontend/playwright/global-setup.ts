@@ -6,12 +6,12 @@ export default async function globalSetup(_config: FullConfig) {
   const deadline = Date.now() + 30_000
   while (Date.now() < deadline) {
     try {
-      const r = await fetch(`${url}/healthz`)
+      const r = await fetch(`${url}/api/v1/healthz`)
       if (r.ok) return
     } catch {
       /* ignore */
     }
     await new Promise((res) => setTimeout(res, 500))
   }
-  throw new Error(`Backend at ${url}/healthz did not become healthy in 30s`)
+  throw new Error(`Backend at ${url}/api/v1/healthz did not become healthy in 30s`)
 }

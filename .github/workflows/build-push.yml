@@ -2,7 +2,7 @@ name: Build and push to Cloud Run staging
 
 # CI-02 — On every merge to main: build + push backend AND worker Docker images
 # to Artifact Registry, deploy backend to Cloud Run staging revision (no traffic),
-# update Cloud Run Jobs to the new worker image, and smoke-test /healthz.
+# update Cloud Run Jobs to the new worker image, and smoke-test /api/v1/healthz.
 #
 # AUTH POSTURE (Pitfall P6): Uses Workload Identity Federation via
 # google-github-actions/auth@v2 — keyless OIDC. No long-lived JSON service
@@ -104,9 +104,9 @@ jobs:
               --quiet
           done
 
-      - name: Smoke test staging /healthz
+      - name: Smoke test staging /api/v1/healthz
         run: |
-          # Resolve the staging-tagged URL and curl /healthz.
+          # Resolve the staging-tagged URL and curl /api/v1/healthz.
           STAGING_URL=$(gcloud run services describe tide-backend \
             --region=${{ vars.GCP_REGION }} \
             --format='value(status.traffic[?(@.tag=="staging")].url)')
@@ -117,5 +117,5 @@ jobs:
           echo "Staging URL: $STAGING_URL"
           # Cloud Run cold start: allow up to 30s.
           curl --silent --fail --max-time 30 --retry 3 --retry-delay 5 \
-            "${STAGING_URL}/healthz" | grep -q '"status":"ok"'
-          echo "Staging /healthz: ok"
+            "${STAGING_URL}/api/v1/healthz" | grep -q '"status":"ok"'
+          echo "Staging /api/v1/healthz: ok"
