@@ -12,7 +12,7 @@ Or from the repo root with the backend venv activated:
 
 Tests cover the 5 critical post-deploy gates:
 
-1. /healthz returns 200 + body {"status":"ok"}             (REL-01)
+1. /api/v1/healthz returns 200 + body {"status":"ok"}             (REL-01)
 2. CSP header present on every response                    (SEC-05)
 3. HTTP -> HTTPS redirect (Cloud Run auto)                 (SEC-01)
 4. GET /api/v1/conditions/{NOAA_station_id} 200 + JSON     (Phase 3 REST)
@@ -45,16 +45,16 @@ SAMPLE_NOAA_STATION = "8534720"
 
 
 def test_healthz_returns_200():
-    """REL-01 — /healthz returns 200 + status=ok JSON."""
-    r = httpx.get(f"{BASE}/healthz", timeout=DEFAULT_TIMEOUT)
-    assert r.status_code == 200, f"/healthz returned {r.status_code}, body={r.text[:200]}"
+    """REL-01 — /api/v1/healthz returns 200 + status=ok JSON."""
+    r = httpx.get(f"{BASE}/api/v1/healthz", timeout=DEFAULT_TIMEOUT)
+    assert r.status_code == 200, f"/api/v1/healthz returned {r.status_code}, body={r.text[:200]}"
     body = r.json()
-    assert body.get("status") == "ok", f"/healthz body status != 'ok': {body}"
+    assert body.get("status") == "ok", f"/api/v1/healthz body status != 'ok': {body}"
 
 
 def test_csp_header_present():
     """SEC-05 — CSP middleware emits header on every response."""
-    r = httpx.get(f"{BASE}/healthz", timeout=DEFAULT_TIMEOUT)
+    r = httpx.get(f"{BASE}/api/v1/healthz", timeout=DEFAULT_TIMEOUT)
     csp = r.headers.get("content-security-policy", "")
     assert "default-src 'self'" in csp, f"CSP missing default-src 'self': {csp!r}"
     assert "frame-ancestors 'none'" in csp, f"CSP missing frame-ancestors 'none': {csp!r}"
@@ -63,7 +63,7 @@ def test_csp_header_present():
 def test_https_only():
     """SEC-01 — http:// must redirect to https:// (Cloud Run auto)."""
     http_url = BASE.replace("https://", "http://")
-    r = httpx.get(f"{http_url}/healthz", timeout=DEFAULT_TIMEOUT, follow_redirects=False)
+    r = httpx.get(f"{http_url}/api/v1/healthz", timeout=DEFAULT_TIMEOUT, follow_redirects=False)
     assert r.status_code in (301, 308), f"expected 301/308 redirect, got {r.status_code}"
 
 

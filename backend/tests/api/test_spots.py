@@ -261,6 +261,16 @@ def test_phase1_conditions_still_works(test_client):
     assert resp.status_code in (200, 404, 503), resp.text
 
 
+def test_healthz_api_v1_alias(test_client):
+    """/api/v1/healthz mirrors /healthz — Cloud Run's Google frontend intercepts
+    the bare /healthz path with a 404, so deployed probes use this alias."""
+    resp = test_client["client"].get("/api/v1/healthz")
+    assert resp.status_code in (200, 503), resp.text
+    body = resp.json()
+    assert {"ts_lag_seconds", "qdrant_ok", "model_loaded", "status"} <= set(body)
+    assert body["status"] in ("ok", "degraded")
+
+
 def test_healthz_still_works(test_client):
     """Regression: /healthz is reachable and returns the L-05 4-field shape.
 

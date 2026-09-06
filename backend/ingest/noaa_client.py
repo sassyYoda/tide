@@ -134,6 +134,11 @@ async def _fetch_product(
         params["range"] = "216"  # 24h × 9d (overshoots the 7d sweep)
     else:
         params["date"] = "latest"
+    if product == "water_level":
+        # NOAA CO-OPS rejects water_level requests without an explicit datum
+        # ("Wrong Datum: Datum cannot be null or empty"). Use MLLW to match the
+        # predictions product so observed and predicted levels share a datum.
+        params["datum"] = "MLLW"
     if extra_params:
         params.update(extra_params)
     resp = await client.get(NOAA_BASE, params=params, timeout=_NOAA_TIMEOUT)

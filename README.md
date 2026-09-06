@@ -208,6 +208,10 @@ This pattern lets the operator change the rolling window without redeploying.
 
 ### Readiness: `/healthz` (REL-01)
 
+Also served at `/api/v1/healthz` — Cloud Run's Google frontend intercepts the
+bare `/healthz` path with a 404, so deployed probes and smoke tests use the
+`/api/v1` alias.
+
 ```json
 {
   "ts_lag_seconds": 142,
